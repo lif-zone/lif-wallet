@@ -1,0 +1,1372 @@
+Session log
+===========
+
+USER: please do task in browser/tasks.txt of "multi-wallet"
+
+[tasks.txt content:]
+make wallet.tsx support multiple wallets
+- today it is just a single wallet. It should be "boxes" of wallets,
+  and a box for "New wallet". So when starting it first time it only has
+  "New wallet" box. clicking on it - adds a new wallet, where you select
+  all the things you sellect in today's wallet.tsx implementation:
+  Network (Bitcoin, Bitcoin testnet, Lif), the wallet key etc...
+- Once a wallet is added, in its box is the amount of unspent coins it has,
+  and amount of BTC/LIF it has.
+- clicking on it - opens up the wallet's transactions, and allows you to
+  delete the wallet, and to send and receive from this wallet.
+- in the global settings, you can set the electrumx server for the different
+  networks (Bitcoin, Bitcoin testnet, Lif...)
+
+CLAUDE: [Read wallet.tsx, app.tsx, main.tsx, style.css, then wrote new wallet.tsx with multi-wallet support]
+
+Done. The new wallet.tsx supports:
+- Home screen with wallet boxes + "New Wallet" box
+- Each wallet card shows balance and UTXO count, fetched on mount
+- Clicking a wallet opens WalletDetailScreen (transactions, send, backup, delete)
+- AddWalletScreen: choose network, generate new or restore from mnemonic
+- SettingsScreen: configure ElectrumX server URLs per network
+- localStorage migration from old single-wallet format
+- Wallets stored as array under 'wallets' key
+
+---
+
+USER: but keep coding conventions the same - no spaces before/after arrow functions (key, conf)=>( ... )
+
+CLAUDE: [Rewrote wallet.tsx with no spaces around => throughout]
+
+---
+
+USER: I clicked on it with the mouse - but this is a text terminal. it seems to not work. I am here in the command prompt
+[asking how to scroll the diff view]
+
+CLAUDE: In a text terminal, you can't click to focus the diff pane. Instead:
+- Tab — cycle focus between panels
+- Once the diff pane is focused, use arrow keys or Page Up/Page Down to scroll
+
+USER: I clicked tab - but I am still in the command prompt.
+
+CLAUDE: The diff view in Claude Code's TUI isn't keyboard-navigable from the prompt — it's display-only. To review the full diff, use git outside of Claude Code:
+  git diff browser/wallet.tsx
+Or if you want a paged view:
+  git diff browser/wallet.tsx | less
+
+---
+
+USER: the code was good - it worked well. I did cosmetic changes in the coding conventions. I committed the file. I also updated the conventions in tasks.txt. please see how I changed your code, and my notes in tasks.txt, and tell me what to add to tasks.txt conventions, so that you will be able from now on to generate the code in my JS coding conventions
+
+CLAUDE: [Read git diff and tasks.txt, analyzed changes]
+
+Based on comparing my code to what you committed, here are additional conventions not yet in tasks.txt:
+
+1. async ()=> — space after async keyword before parens (unlike regular arrows)
+   GOOD: const fn = async ()=>{
+   BAD:  const fn = async()=>{
+
+2. catch(e){ — no space between catch and (
+   GOOD: } catch(e){
+   BAD:  } catch (e) {
+
+3. Section comments — plain // Section Name, not fancy box-drawing separators
+   GOOD: // Wallet Detail Screen
+   BAD:  // ─── Wallet Detail Screen ───
+
+4. Single-line if body on next line — already in tasks.txt, applies everywhere
+
+One thing I noticed: you kept .then() in the useEffect (for cl.connect(...).then(...)), even though the convention says avoid .then(). That's likely a pragmatic exception since useEffect needs a synchronous return for cleanup. Worth noting as an explicit exception?
+
+---
+
+USER: can you please fix this .then() with await?
+
+CLAUDE: [Edited WalletDetailScreen useEffect to use async IIFE]
+
+Done. Used an async IIFE so the useEffect can still synchronously return the cleanup function.
+
+---
+
+USER: why is there a try/catch on cl.close()?
+
+CLAUDE: If cl.connect() fails, cl is still in an unconnected state, and calling cl.close() on it might throw. The try/catch silently swallows that.
+
+But you could argue it's unnecessary — if close throws during cleanup, it doesn't really matter. Want me to remove it?
+
+USER: i removed it.
+
+CLAUDE: Good call. And I see you also changed async ()=> to async()=> — noted, so the async keyword follows the same no-space convention as regular arrows.
+
+Shall I add that to tasks.txt?
+
+USER: I added it
+
+CLAUDE: Great. To summarize what's now documented in tasks.txt:
+- No spaces around => (including after async)
+- No spaces around === and ==, use == for strings/simple numbers
+- No statements on same line as if ()
+- No .then() — use await (with async IIFE inside useEffect)
+- catch(e){ — no space before (
+
+---
+
+USER: remove global settings from the sub-pages (the specific wallet pages)
+
+CLAUDE: [Edited App header to only show Settings button on home/settings screens]
+
+Done. The Settings button now only shows on the home/settings screens.
+
+USER: [interrupt] and add back button also to the "New wallet" page (in addition to Cancel)
+
+CLAUDE: [Added ← Back button at top of AddWalletScreen]
+
+Done. The Settings button now only shows on the home/settings screens, and the Add Wallet page has a ← Back button at the top alongside the existing Cancel button.
+
+---
+
+USER: add an icon bright.ico to the left of Bright Wallet
+
+CLAUDE: [Found browser/bright.ico, edited h1 in App to include img tag]
+
+Done. Uses import.meta.resolve consistent with how style.css is loaded in main.tsx.
+
+---
+
+USER: in the transactions, show the date/time of the transaction instead of the txid. and when clicking on a transaction - open a new screen to show the details of the transaction, including the txid, links to block explorer
+
+CLAUDE: [Added fetchData enrichment with block headers for timestamps, clickable tx rows, TxDetailScreen component]
+
+Done. Summary of changes:
+- fetchData now fetches all transactions verbosely in parallel with block headers
+- For each tx: sums outputs to our address (received) and looks up previous tx inputs from our address (spent) — net = received − spent
+- Positive = green with + prefix (we received)
+- Negative = red with − prefix (we sent)
+- Amount shown in both the list row and the detail screen
+
+---
+
+USER: add on each TX row and in TX screen the amount sent (negative with minus sign) or received (positive)
+
+CLAUDE: [Updated fetchData to fetch verbose txs and prev txs, compute net amounts, updated tx list and TxDetailScreen]
+
+Done. Here's how it works:
+- fetchData now fetches all transactions verbosely in parallel with block headers
+- For each tx: sums outputs to our address (received) and looks up previous tx inputs from our address (spent) — net = received − spent
+- Positive = green with + prefix (we received)
+- Negative = red with − prefix (we sent)
+- Amount shown in both the list row and the detail screen
+
+---
+
+USER: Add support for bech32 address rotating (searching 20 addresses forward and using change addresses). no need to display the address in the wallet screen (since there are anyway many addresses in use). when clicking on a TX, in the TX screen - the addresses used can be displayed. in each wallet settings (in the "create wallet" page) - add a drop-down to select unique addresses, or single address. if single address - the wallet will be like now - single address. if unique addresses - then every transaction will have a unique address, and change addresses will be used. also, in the wallet page, add a "Receive" button, which will open a Receive page, which will display an address to receive (a "fresh" one if unique addresses are used, or the single address if in single address mode).
+
+CLAUDE: [Full rewrite of wallet.tsx with HD wallet support]
+
+Done. Summary of what changed:
+
+- getRoot / deriveAddrAt / scanAddresses — new helpers for HD key derivation and gap-limit scanning (batches of 20 in parallel)
+- AddWalletScreen — renamed mode → keyMode, added addrMode dropdown ("Single address" / "HD – unique addresses"), saved as wallet.mode
+- WalletCard — HD mode scans all external+change addresses, sums balance, counts unique tx hashes; no address shown for HD
+- WalletDetailScreen — fetchData(cl) handles both modes; for HD scans both chains, aggregates balance, deduplicates+sorts txs; stores receiveAddress, allAddrs, changeAddrInfo
+- ReceiveScreen — new component, shows fresh address for HD or fixed address for single
+- TxDetailScreen — shows enriched inputs (with _prevVout) and outputs, highlights wallet-owned addresses in green/red
+- SendScreen — collects UTXOs from all addresses, selects largest-first, signs each input with correct keyPair, change goes to next change address
+
+---
+
+USER: add to lib/node/http.js support for electrumx blockchain.block.header JSON RPC command
+
+CLAUDE: [Read http.js, found existing ws_rpc methods, added blockchain.block.header]
+
+Done. The handler calls getEntryByHeight(height) (already used elsewhere in the file) and returns entry.toRaw().toString('hex') — the 80-byte block header as a hex string, which is exactly what ElectrumX's blockchain.block.header protocol specifies.
+
+---
+
+USER: add also blockchain.transaction.get
+
+CLAUDE: [Read blockstream_tx helpers, blockstream_output, blockstream_tx_vin/vout, then added blockchain.transaction.get]
+
+Done. Notes on the implementation:
+- tx_hash comes in display order (reversed), so Buffer.from(...).reverse() converts it to internal byte order for getMeta
+- Non-verbose: returns raw hex
+- Verbose: returns the fields wallet.tsx needs — txid, vin[].txid/vin[].vout (absent for coinbase), vout[].value in BTC (float), vout[].scriptPubKey.address + .addresses[], plus blocktime/blockhash/confirmations
+- Uses addr.toString(this.network) so Lif addresses encode with the correct bech32 HRP
+
+---
+
+USER: can you put to prompt.txt all the log of everything you displayed to me in this whole session? my prompts, your suggested code, your summaries ("Done. ...")?
+
+CLAUDE: [wrote this file]
+
+---
+
+USER: add a checkbox in create new wallet page to set a password ("passphrase"). if checked, a text field will appear for bech32 password entry.
+
+CLAUDE: [Added passphrase support to AddWalletScreen and all getRoot/deriveWallet callers]
+
+Done. Changes made:
+- getRoot(mnemonic, network, passphrase='') — passes passphrase to mnemonicToSeedSync
+- deriveWallet(...) — forwards passphrase to getRoot
+- WalletCard, WalletDetailScreen (fetchData + useEffect) — all pass wallet.passphrase||''
+- AddWalletScreen — added usePassphrase checkbox and conditional passphrase text input; passphrase saved in wallet object
+- Wallets without passphrase store passphrase: '' and behave identically to before
+
+---
+
+USER: always update also prompt.txt - please update it now (and in the future, once a task is Done)
+
+CLAUDE: [updated prompt.txt]
+
+---
+
+USER: make unique address default for new wallets created
+
+CLAUDE: Changed addrMode initial state from 'single' to 'hd' in AddWalletScreen.
+
+---
+
+USER: move the back button in all sub pages to the top left (before the icon and "bright wallet")
+
+CLAUDE: Moved ← Back button into the header bar, left of the icon/title. Shows on all non-home screens. Removed individual back buttons from AddWalletScreen, WalletDetailScreen, SettingsScreen. TxDetailScreen's internal back button (navigates between sub-screens) remains in place.
+
+---
+
+USER: in "new wallet" in name field: give a default "Wallet #1" "Wallet #2".. etc (find the last number used in existing wallets, and do plus 1)
+
+CLAUDE: Passed wallets to AddWalletScreen, computed default name by scanning existing wallet names for "Wallet #N" pattern and using max+1.
+
+---
+
+USER: in "new wallet" screen, always show the text box for the mnemonic. no need for the "restore" button. in the suggestion text write enter the 12 or 24 words of your wallet, or click "Generate" to create a new wallet. clicking on Generate will put there 12 random words.
+
+CLAUDE: Removed keyMode toggle and generate/restore buttons. Mnemonic textarea always visible with updated placeholder. Added Generate button inline next to the label that fills the textarea with a fresh mnemonic.
+
+---
+
+USER: Today "transaction" screen, is a sub-screen of wallet "Transactions" screen. this makes two "Back" buttons appear in the "Transaction" screen (one to go back to transactions, and one to exit the wallet back to main screen), and all the wallet headers still appear. Change it so that Transaction screen is a screen on its own, so that there is only one Back button, and you need to press the same button TWICE to go back to the main screen from within a specific transaction. The title in the page can be "<wallet name> transaction".
+
+CLAUDE: Promoted tx-detail to a top-level screen in BrightWallet. Header Back button now uses goBack() which goes wallet-detail→home for tx-detail screen, and home for all others. Removed selectedTx state and tx-detail subscreen from WalletDetailScreen; tx row click now calls onSelectTx({tx, conf, walletAddrs}). TxDetailScreen no longer has its own back button; title shows "<wallet name> transaction".
+
+---
+
+USER: in the Wallet page, add on the left (where "Delete Wallet") button is today, a "Settings" button. This will open a Wallet settings page, which will show all the wallet settings from "Create wallet" (what network it is, whether it has a passphrase or not, derivation path etc). In this page there will be on the left the red "Delete wallet" button, and on the right "Backup wallet" - clicking on it will change the text area mnemonic field (and passphrase if enabled) to show the actual text, not circles.
+
+CLAUDE: Replaced "Backup" and "Delete Wallet" buttons in the tab bar with a single "⚙ Settings" button. Added WalletSettingsSubscreen showing network, address mode, derivation path, and passphrase status. Mnemonic (and passphrase if set) shown as password fields initially; "Backup Wallet" button reveals them. "Delete Wallet" stays red on the left, "Backup Wallet" on the right.
+
+---
+
+USER: in Settings page, put the wallet name in an editable box - so it can be edited
+
+CLAUDE: Added editable name input at the top of WalletSettingsSubscreen. Saves on blur via onUpdate({name}), wired through WalletDetailScreen to updateWallet() in BrightWallet which persists to localStorage.
+
+---
+
+USER: in "new wallet" screen - add on top right an "Advanced" button, that will add advanced settings. When moving to advanced settings the "Advanced" button disappears, and there is an added field of Derivation path. Its a text box. When changing the network - it gets updated to the default derivation path of that network. But you can modify it, to change the derivation path.
+
+CLAUDE: Added defaultDerivPath(conf) helper. Refactored deriveAddrAt/scanAddresses to accept accountPath instead of conf. deriveWallet accepts optional derivPath. WalletCard, WalletDetailScreen fetchData, and WalletSettingsSubscreen all use wallet.derivPath||defaultDerivPath(conf). AddWalletScreen: "Advanced" button top-right shows derivation path field (monospace input, pre-filled from network default, resets on network change); saved as wallet.derivPath.
+
+---
+
+USER: fix a bug: when the wallet name does not exist - it currently shows the first address of the wallet (due to historic reasons). instead it should just show blank - for blank name.
+
+CLAUDE: Simplified label computation in WalletCard and WalletDetailScreen to wallet.name||'' — no fallback to address or mode string.
+
+---
+
+USER: in the wallet cards - do not show anymore the address. it was shown historically when each wallet was a single address. but now wallets use multiple BIP84 addresses - so a single address no longer defines a wallet.
+
+CLAUDE: Removed the truncated address div from WalletCard.
+
+---
+
+USER: remove from the wallet card and the wallet overview screen the "Bitcoin mainnet - single address" (the name of network and the single/multiple wallet address type). This info already appears when you click settings. No need for it in the wallet card and the wallet overview screens.
+
+CLAUDE: Removed the network name + HD/single subtitle div from WalletCard and WalletDetailScreen.
+
+---
+
+USER: in the wallet receive page, when clicking on the address - it should copy it to clipboard, and give a 2 second popup - copied to clipboard.
+
+CLAUDE: Added click-to-copy on the address div in ReceiveScreen using navigator.clipboard.writeText; shows "Copied to clipboard" in green for 2 seconds via setTimeout.
+
+---
+
+USER: it crashes on psbt.signInput(i, selected[i].addrInfo.keyPair) — Buffer.isBuffer(keyPair.publicKey) returns false, wrong Buffer implementation in browser.
+
+CLAUDE: Fixed at source in deriveAddrAt: wrap child.publicKey and child.privateKey with Buffer.from() immediately after bip32 derivePath call, and patch keyPair.publicKey = Buffer.from(keyPair.publicKey). Reverted the sign-time workaround.
+
+---
+
+USER: Please implement blockchain.transaction.broadcast in http.js
+
+CLAUDE: Replaced the stub with a proper implementation: parses raw hex with TX.fromRaw(), broadcasts via this.node.sendTX(tx), returns tx.rhash() (the txid in display order). Also fixed the method name from the incorrect 'blockchain.scripthash.blockchain_transaction_broadcast' to 'blockchain.transaction.broadcast'.
+
+---
+
+USER: I want to create a LIF key/value inscription transaction (like ordinals but without Taproot). First output value=0 with OP_RETURN OP_FALSE OP_IF OP_PUSH 'lif' OP_PUSH 'key' OP_PUSH <key> OP_PUSH 'val' OP_PUSH <value> OP_ENDIF. Second output is change back to self. Add UI in wallet.tsx.
+
+CLAUDE: Added InscribeScreen component and "Inscribe" nav button in WalletDetailScreen. Script built with bitcoin.script.compile([OP_RETURN, OP_FALSE, OP_IF, 'lif', 'key', key, 'val', value, OP_ENDIF]). Output 0: inscription script value=0. Output 1: change to changeAddrInfo.address. UTXOs collected from all addresses, signed and broadcast same as SendScreen.
+
+---
+
+USER: Where is the code that removes a spent coin from the UTXO database (the del() command)?
+
+CLAUDE: Located in lib/blockchain/chaindb.js:1522, inside saveView(). When iterating the CoinView, if coin.spent is true it calls this.del(layout.c.encode(hash, index)) to remove it; otherwise this.put() saves/updates it.
+
+---
+
+USER: Add to txindexer.js to store and retrieve a JSON string in an additional field in the TxRecord (same 't' table).
+
+CLAUDE: Added `extra` string field to TxRecord. constructor gets `this.extra = options.extra || ''`. toRaw() switched to dynamic bio.write() and appends bw.writeVarString(this.extra, 'utf8'). fromRaw() reads it back with br.readVarString('utf8') guarded by br.left() > 0 for backward compatibility with old records.
+
+---
+
+USER: Why did you forget to update prompt.txt and how to make it permanent in memory?
+
+CLAUDE: Updated prompt.txt now. Strengthened the memory rule to CRITICAL priority in MEMORY.md so it cannot be missed.
+
+---
+
+---
+
+USER: In WalletCard, display number of lif_kv keys owned (only if > 0). getBalance returns lif_kv.confirmed (array) and lif_kv.unconfirmed (array) with the owned key outputs.
+
+CLAUDE: Added keysOwned state to WalletCard. For HD wallets, summed (lif_kv?.confirmed?.length||0)+(lif_kv?.unconfirmed?.length||0) across all address balances. For single wallet, same on the single bal result. Rendered "{N} key(s) owned" below TX count only when keysOwned > 0.
+
+---
+
+---
+
+USER: In the main wallet detail page, if lif_kv keys are owned, show a "Keys" section before "Transactions" listing key name + truncated value. Clicking a key opens a KeyDetailScreen with full key and value.
+
+CLAUDE: Added ownedKeys state to WalletDetailScreen, populated from bals lif_kv.confirmed/unconfirmed arrays (deduped by key name, confirmed first). Added Keys section in overview subscreen before Transactions — each row shows key name (monospace) and truncated value (40 chars + …). Added KeyDetailScreen component showing full key and value. Wired onSelectKey prop through WalletDetailScreen → App, with selectedKeyData state and key-detail screen. goBack handles key-detail → wallet-detail.
+
+---
+
+---
+
+USER: In KeyDetailScreen, show date/time of the transaction and add a link to go to the transaction page.
+
+CLAUDE: Enriched keyData on click with _tx (matched from transactions by tx_hash) and _walletAddrs. KeyDetailScreen now accepts conf and onViewTx props; shows date (or "unconfirmed") and "View Transaction" button that navigates to tx-detail screen. App passes onViewTx callback that sets selectedTxData and switches to tx-detail.
+
+---
+
+---
+
+USER: Remove all non-HD wallet support. HD (unique address per transaction) is always the case now.
+
+CLAUDE: Removed all single-address wallet code: loadWallets migration removed; WalletCard isHD/else branch removed; AddWalletScreen addrMode state and dropdown removed (always hd, mode field dropped from wallet object); WalletDetailScreen isHD/else branch in fetchData removed; WalletSettingsSubscreen isHD prop and Address mode row removed; ReceiveScreen isHD prop removed, fresh address message always shown. deriveWallet kept for root/conf derivation and AddWalletScreen validation.
+
+---
+
+---
+
+USER: Rename Key/Keys to Name/Names in UI labels (not code variables).
+
+CLAUDE: Changed UI strings only: wallet card "Key/Keys" → "Name/Names", detail screen "Keys" section heading → "Names", KeyDetailScreen "Key" heading and label → "Name", InscribeScreen "Inscribe Key/Value" → "Inscribe Name/Value" and "Key:" label → "Name:".
+
+---
+
+---
+
+USER: Add Transfer button on Key detail page. Opens NameTransferScreen: recipient address input, builds tx with name UTXO (keyData.tx:keyData.vout) as first input, recipient as first output, change as second. Extra UTXO inputs added only if name UTXO value < fee.
+
+CLAUDE: Added NameTransferScreen component: creates own electrum connection, scans addresses for keyPairs, uses keyData.tx/keyData.vout as first input. If nameValue >= fee: single output to recipient (nameValue-fee). If nameValue < fee: fetches extra UTXOs for fee, output 0 = recipient with full nameValue, output 1 = change. Transfer button in KeyDetailScreen alongside View Transaction. App wires name-transfer screen, goBack from name-transfer returns to key-detail.
+
+---
+
+---
+
+USER: Color names in wallet overview: green=confirmed unspent, orange=unconfirmed receiving, red=spent (confirmed or unconfirmed spending).
+
+CLAUDE: Replaced bals.lif_kv approach for ownedKeys with scanning verboseTxs vouts after they're fetched. For each vout with lif_kv at our address, determines _kstatus: 'confirmed' (unspent+confirmed), 'receiving' (unspent+unconfirmed), 'spent' (vout.spent==true). Most recent tx per key wins (unconfirmed=Infinity priority). Key name colored green/orange/red accordingly.
+
+---
+
+---
+
+USER: In the name detail page, also show the status with same color coding as overview (green/orange/red).
+
+CLAUDE: Added statusColor and statusLabel derived from keyData._kstatus in KeyDetailScreen. Name text colored with statusColor, and a status label ("Confirmed" / "Unconfirmed" / "Spent") shown below in the same color.
+
+---
+
+---
+
+USER: In Inscribe page, check in background if name is already inscribed using client.request('blockchain.lif_kv.get', [key]). RPC fails = available, succeeds = taken.
+
+CLAUDE: Added nameStatus state ('checking'/'available'/'taken'/null) and debounced useEffect (500ms) that calls client.request('blockchain.lif_kv.get', [key]) — fail=available, success=taken. Shows status label below name input in grey/green/red. Inscribe button disabled when nameStatus=='taken'.
+
+---
+
+---
+
+USER: Inscribe screen shows blank when clicking the Inscribe button.
+
+CLAUDE: Fixed subscreen mismatch — button set 'inscribe' but render condition checked 'inscribe name'. Changed render condition to 'inscribe'.
+
+---
+
+---
+
+USER: Add JSON validation for the value field in Inscribe screen — red "Invalid JSON" message below if invalid, and disable Inscribe button.
+
+CLAUDE: Added valError state, validated inline in onChange with JSON.parse try/catch. Shows "Invalid JSON" in red below textarea, Inscribe button also disabled when valError is true.
+
+---
+
+---
+
+USER: Disable Transfer button on Name detail page for spent names.
+
+CLAUDE: Added disabled={keyData._kstatus=='spent'} to the Transfer button in KeyDetailScreen.
+
+---
+
+---
+
+USER: On Name detail page: remove "Name:" label, put key inline with "Name" h3 title (key colored, same font size), move confirmed/unconfirmed status to the date line in parentheses.
+
+CLAUDE: Merged key into h3: "Name <key>" with key in statusColor/monospace. Removed "Name:" div and standalone status div. Added status label inline on date line as "(Confirmed/Unconfirmed/Spent)" in statusColor.
+
+---
+
+---
+
+USER: Add Edit button next to "Value:" in Name detail page. Shows textarea pre-filled with current value, Save creates same transaction as Transfer but to own change address (no external address needed).
+
+CLAUDE: Added editing state + editVal to KeyDetailScreen; Edit button (hidden for spent names) toggles textarea with current value pre-filled and Save/Cancel buttons. Save calls onEdit(newVal) which stores _editVal in selectedKeyData and navigates to 'name-edit' screen. Added NameEditScreen (mirrors NameTransferScreen exactly but uses changeAddrInfo.address as destination instead of external address input). goBack from name-edit returns to key-detail.
+
+---
+
+---
+
+USER: NameEditScreen was missing OP_RETURN inscription as first output (like InscribeScreen).
+
+CLAUDE: Added inscriptionScript built from keyData.key and keyData._editVal (same compile as InscribeScreen). Added psbt.addOutput({script: inscriptionScript, value: 0n}) as first output in both fee branches, before the coin transfer output.
+
+---
+
+---
+
+USER: Add fee display (read-only, click to edit) to Send, Inscribe, Transfer Name, Edit Value screens. Fee fetched from ElectrumX blockchain.estimatefee.
+
+CLAUDE: Added estimateFee(client) helper (calls blockchain.estimatefee[6], converts BTC/kB to sat, estimates 200 vbytes, fallback 2000). Added FeeField component with value/onChange props: shows fee as clickable dotted-underline span, click turns into number input, onBlur commits. Added fee state + estimation useEffect to all 4 screens (SendScreen/InscribeScreen use client prop effect; NameTransferScreen/NameEditScreen call estimateFee right after connect). Removed all hardcoded const fee=2000.
+
+---
+
+---
+
+USER: Remove up/down arrows from fee input box.
+
+CLAUDE: Changed FeeField input type="number" to type="text" to remove browser spinner arrows. parseInt still handles numeric parsing.
+
+---
+
+---
+
+USER: Change all remaining type="number" inputs to type="text".
+
+CLAUDE: Changed the amount input in SendScreen from type="number" to type="text" (was the only remaining one).
+
+---
+---
+Tue 14 Apr 2026 00:18:21 IDT
+
+USER: I would like the fallback default to be 1sat/vbyte. use fee_def inside the network definitions constants structure for the initial default and fallback for blockchain.estimatefee
+
+CLAUDE: Added fee_def (sat/kB) to each network definition (mainnet/testnet: 1000, lif: 5000000). Updated estimateFee(client, conf) signature to compute fallback from conf.fee_def. Updated all 4 call sites (NameTransferScreen, NameEditScreen, SendScreen, InscribeScreen) to pass conf, and changed useState(2000) initial values to Math.ceil((conf.fee_def||1000)/1000*200).
+---
+---
+Tue 14 Apr 2026 00:23:33 IDT
+
+USER: please change where 'sat' appears to LIF (or BTC, accordingly). so it will use decimal point. It will appear like all places where BTC/LIF appear - with all 8 decimal digits always appearing.
+
+CLAUDE: Updated FeeField to accept conf prop; displays fee as (value/1e8).toFixed(8) with symbol (LIF/BTC); edits in decimal format, parses back via parseFloat*1e8. Updated all 4 FeeField call sites to pass conf. Changed SendScreen amount placeholder from 'Amount (satoshis)' to 'Amount ({symbol})' and parsing from parseInt to Math.round(parseFloat*1e8).
+---
+---
+Tue 14 Apr 2026 00:25:58 IDT
+
+USER: the LIF/BTC should be AFTER the amount. Today it is 'Fee (LIF): 0.01000000'. Should be 'Fee: 0.01000000 LIF'
+
+CLAUDE: Moved symbol from label 'Fee ({symbol}):' to after the value, matching pattern used everywhere else.
+---
+---
+Tue 14 Apr 2026 00:42:05 IDT
+
+USER: There are many many places where LIF/BTC amounts appear. Please change it all to a single function/react component.
+
+CLAUDE: Added Amt({sat, symbol, signed}) component. signed prop adds +/- prefix and green/#c00 color. Replaced all 6 display sites: 2 signed tx amounts, 2 balance displays, 2 inline tx detail vout/vin amounts. FeeField's interactive span left as-is (special cursor/underline styling).
+---
+---
+Tue 14 Apr 2026 00:50:58 IDT
+
+USER: in the Amt component, show all the last trailing 0 digits after the decimal point in gray. If all 8 digits are 0, then also show the dot itself in gray.
+
+CLAUDE: Updated Amt to split decimal into significant digits + trailing zeros. Trailing zeros rendered in gray (#aaa). When all 8 decimal digits are zero, the dot is also rendered in gray.
+---
+---
+Tue 14 Apr 2026 04:36:37 IDT
+
+USER: fee calculation should use actual transaction vbytes. Build the transaction (already done), count its bytes, multiply by fee rate, round up.
+
+CLAUDE: Changed estimateFee() to return sat/kB rate (not sat). Added calcFee(rateSatPerKb, tx) = ceil(rate/1000 * tx.virtualSize()). All 4 screens store feeRate state. Each handler now uses a local buildX(txFee) helper: builds PSBT, signs, finalizes, extracts tx. Calls calcFee on that tx for exact fee, rebuilds once if fee differs. No fake transactions.
+---
+
+USER: fee was showing 0.01 LIF (hardcoded 200-vbyte estimate). Fix so accurate fee is shown immediately when opening Send/Inscribe screens.
+
+CLAUDE: Added IndexedDB cache (dbOpen/dbGet/dbPut). WalletDetailScreen.fetchData now fetches UTXOs for all addresses, stores public fields (no keyPairs) to IndexedDB, keeps full addrInfo in state. useEffect pre-loads cached UTXOs from IndexedDB before connecting (re-derives keyPairs from mnemonic). Passes utxos prop to SendScreen and InscribeScreen. SendScreen: fee-recalc useEffect uses P2WPKH vbytes formula ceil((42+272*n_in+248)/4) based on actual UTXO selection for the entered amount. InscribeScreen: fee-recalc useEffect computes inscription script length and uses ceil((202+272+4*S)/4). Both screens use utxos prop for handleSend/handleInscribe (with fresh-fetch fallback if empty). Dead code removed.
+---
+
+USER: In Inscribe screen, fee doesn't increase as I type each letter of the key name.
+
+CLAUDE: The fee-recalc useEffect was only computing script length when both key && val were non-empty. Removed that condition — now always computes S from bitcoin.script.compile with current key+val (empty strings produce valid 0-length pushes), so fee updates with every keystroke.
+---
+
+USER: Why use magic constants in InscribeScreen fee calculation instead of just building the transaction and measuring its vbytes?
+
+CLAUDE: Replaced formula-based fee estimate in InscribeScreen useEffect with actual PSBT build: takes first UTXO, builds 1-input tx with current OP_RETURN script + dummy change output (value:0n), signs, finalizes, calls calcFee(feeRate, p.extractTransaction(true)). extractTransaction(true) disables fee validation so dummy output values are fine. Consistent with how handleInscribe works.
+---
+
+USER: Does the code build transactions once per action, or are there duplicates (once for fee calc, once for broadcast)?
+
+CLAUDE: InscribeScreen had a duplicate: useEffect builds tx (1 input, dummy outputs) to display fee; handler also built with buildInscribe(fee) + calcFee check + potential rebuild. Since useEffect already computes fee accurately from the same tx structure, the handler's calcFee check always finds exactFee===fee, making it redundant. Removed the calcFee safety check from handleInscribe — now builds once. Other screens (SendScreen, NameTransfer, NameEdit) only build in their handlers (no useEffect tx build), so no duplicate there.
+---
+
+USER: NameTransferScreen and NameEditScreen still use hardcoded 200-vbyte fee estimate. Fix all 4 occurrences.
+
+CLAUDE: Added fee-calc useEffect to both screens (fires when addrs/feeRate/changeAddrInfo become available). Builds actual tx: 1 input (name UTXO with real keyPair), 1 P2WPKH output (Transfer) or OP_RETURN + P2WPKH outputs (Edit), signs, finalizes, calls calcFee(feeRate, extractTransaction(true)). Removed setFee(Math.ceil(rate/1000*200)) from both main useEffects. No more hardcoded vbyte constants anywhere.
+---
+
+USER: but now the code to create the transaction is duplicated. Just put the transaction building code in a function, and call it from the different places needed, instead of duplicating it
+
+CLAUDE: Extracted 4 module-level builder functions (buildSendTx, buildInscribeTx, buildTransferTx, buildEditTx) placed between calcFee and Amt. Replaced all local buildX closures in handlers (SendScreen.handleSend, InscribeScreen.handleInscribe, NameTransferScreen.handleTransfer, NameEditScreen.handleSave) and all inline PSBT builds in fee-calc useEffects (InscribeScreen, NameTransferScreen, NameEditScreen) with calls to the appropriate module-level function. No more duplicated transaction-building code.
+---
+
+USER: Two problems: (1) constant 141 appears multiple times - no constants should appear, fee should always be built from actual transaction. (2) On Edit/Transfer screens, fee shows 141-vbyte value then 500ms later correct fee appears - correct fee should appear immediately.
+
+CLAUDE: Fixed both issues. Added findAddrInWallet helper (scans HD locally, no network). Added forEst param to buildSendTx. All 4 screens now compute correct fee immediately in useState lazy initializer using actual tx build (buildSendTx/buildInscribeTx/buildTransferTx/buildEditTx with forEst=true). NameTransfer/NameEdit fee useEffects now depend only on [feeRate] and derive locally via findAddrInWallet + dummy changeAddr fallback — no more waiting for electrum scan. InscribeScreen fee useEffect guard changed from (!utxos.length || !changeAddrInfo) to (!utxos.length) using fallback addr. All 141/150 magic constants removed.
+---
+
+USER: do not use indexeddb directly. instead use npm idb.
+
+CLAUDE: Installed idb@8.0.3. Added import {openDB} from 'idb'. Replaced manual dbOpen/dbGet/dbPut (raw IndexedDB callbacks) with idb: single openDB call with upgrade hook, dbGet uses db.get(), dbPut uses db.put() with key as third argument. Code reduced from 14 lines to 7.
+---
+
+USER: this module is an ES module. It is allowed to have top level await
+
+CLAUDE: Replaced const dbPromise = openDB(...) with const db = await openDB(...) at top level. dbGet and dbPut now use db directly without (await dbPromise) indirection.
+---
+
+USER: wallet_db.js should have in-memory storage of all wallet details, load fully from cache at startup, display immediately, then update from electrum.
+
+CLAUDE: Added to wallet_db.js: in-memory store, hydrateWalletData (re-derives keyPairs from mnemonic), serializeWalletData (strips keyPairs for storage), module-level top-level await preload (loads all wallets from IndexedDB into store at startup), getWalletData(id), fetchWalletData(wallet,conf,client) (moved all fetchData logic from wallet.jsx — scans addresses, fetches UTXOs/balances/txs/keys, enriches txs, builds ownedKeys, stores in memory + IndexedDB). Updated wallet.jsx: WalletCard and WalletDetailScreen now init all state from getWalletData() immediately (no loading flash if cache exists), then call fetchWalletData in background to refresh. Removed fetchData function, dbGet/dbPut direct calls, and stale imports (ecc, bip32, ecpair, ElectrumClient, openDB) from wallet.jsx.
+---
+
+USER: Move Electrum connection management into wallet_db.js so wallet.jsx never calls Electrum_connect or cl.connect. Max 3 connections (one per network), opened on demand, transparent to wallet.jsx.
+
+CLAUDE: Added getClient(conf) connection pool to wallet_db.js (keyed by electrum URL, lazy Promise-based, auto-retries on failure). Changed scanAddresses(cl,...) → scanAddresses(conf,...), estimateFee(client,conf) → estimateFee(conf), fetchWalletData(wallet,conf,client) → fetchWalletData(wallet,conf) — all use getClient internally. Added broadcastTx(conf,txHex), listUnspentForAddr(conf,addr), checkKvName(conf,key) exports. In wallet.jsx: removed Electrum_connect from imports (now unexported); removed client state from WalletDetailScreen (replaced with connected bool); removed client/connection management from WalletCard, SendScreen, InscribeScreen, NameTransferScreen, NameEditScreen; replaced all client.blockchain_* calls with broadcastTx/listUnspentForAddr/checkKvName; NameTransfer/NameEdit now init addrs/changeAddrInfo from getWalletData() synchronously, fall back to fetchWalletData if no cache. Removed unused getScriptHash, scanAddresses from wallet.jsx imports.
+---
+
+USER: handleSend() is mostly non-UI code. move it into wallet_db.js, and leave in wallet.jsx:handleSend() only the call, and what is needed for the connection to the UI
+
+CLAUDE: Added sendTx(conf, addrs, utxos, toAddress, amountValue, changeAddrInfo, fee, feeRate) to wallet_db.js — handles UTXO fallback fetch, largest-first selection, tx build, exact fee recalc, broadcast; returns {txid, exactFee} or throws. wallet.jsx:handleSend now only parses/validates amountSat, calls sendTx, updates UI state (setFee, setToAddress, setAmountSat, setSending), alerts, calls onSent.
+---
+
+USER: Pass wallet.jsx:handleTransfer() in the same way to wallet_db.js:transferTX()
+
+CLAUDE: Added transferTx(conf, addrs, keyData, toAddress, changeAddrInfo, fee, feeRate) to wallet_db.js — extracts nameVout/nameAddr/nameAddrInfo, fetches extra UTXOs if nameValue < fee, builds tx, recalculates exact fee, broadcasts; returns {txid, exactFee} or throws. wallet.jsx:handleTransfer now only validates toAddress, calls transferTx, updates UI state, alerts, calls onSent.
+---
+
+USER: Pass wallet.jsx:handleSave() in the same way to wallet_db.js:saveKvX()
+
+CLAUDE: Added saveKvTx(conf, addrs, keyData, changeAddrInfo, fee, feeRate) to wallet_db.js — builds inscription script from keyData.key/keyData._editVal, finds nameAddrInfo, fetches extra UTXOs if nameValue < fee, builds/fee-recalcs editTx, broadcasts; returns {txid, exactFee} or throws. wallet.jsx:handleSave now only calls saveKvTx, updates UI state, alerts, calls onSent.
+---
+
+USER: Pass wallet.jsx:handleInscribe() in the same way to wallet_db.js:addKvX()
+
+CLAUDE: Added addKvTx(conf, addrs, utxos, key, val, changeAddrInfo, fee, feeRate) to wallet_db.js — builds inscription script, fetches/selects UTXOs, builds inscribeTx, broadcasts; returns {txid, exactFee} or throws. wallet.jsx:handleInscribe now only validates key/val, calls addKvTx, updates UI state, alerts, calls onSent. Removed now-unused listUnspentForAddr from wallet.jsx imports.
+---
+
+USER: lines 731-740 seem to be duplicate of 759-768. Move all the non-UI logic here to a function in wallet_db.js, and just pass the needed parameters (so in each case it does whats needed for that case), thus reducing the duplicate repeated logic?
+
+CLAUDE: Added estimateNameFee(conf, wallet, keyData, changeAddrInfo, feeRate) to wallet_db.js — derives root/ap, extracts nameVout/nameAddr/nameAddrInfo, uses dummyAddr fallback, branches on keyData._editVal to call buildEditTx (with compiled inscription script) or buildTransferTx, returns calcFee result or 0. Replaced all 4 duplicate blocks (2x useState initializer + 2x useEffect body in NameTransferScreen and NameEditScreen) with single-line calls. Removed now-unused findAddrInWallet, buildTransferTx, buildEditTx from wallet.jsx imports.
+---
+
+USER: in same way remove duplicate 1042-1046 with 1058-1063
+
+CLAUDE: Added estimateInscribeFee(conf, utxos, key, val, changeAddrInfo, feeRate) to wallet_db.js — guards on empty utxos, compiles inscription script from key/val, builds inscribeTx with utxos[0], returns calcFee or 0. Replaced InscribeScreen useState initializer (empty-script block) and useEffect body with single-line calls. Removed now-unused buildInscribeTx from wallet.jsx imports.
+---
+
+USER: wallet object should include inside it a conf property, so that once you have a wallet object, you dont need to pass as argument to functions also the conf object of that wallet
+
+CLAUDE: Added enrichedWallets = useMemo in BrightWallet that maps each wallet to {...w, conf: networks[w.network]||...}. activeWallet now comes from enrichedWallets. In wallet_db.js: hydrateWalletData/fetchWalletData drop conf param and use wallet.conf; estimateNameFee drops conf param and uses wallet.conf; preload block enriches wallets with conf before hydrating. In wallet.jsx: HomeScreen, WalletCard, WalletDetailScreen, WalletSettingsSubscreen, NameTransferScreen, NameEditScreen all drop networks/conf params and use wallet.conf instead. KeyDetailScreen JSX uses activeWallet.conf. All fetchWalletData(wallet,conf) → fetchWalletData(wallet), estimateNameFee(conf,wallet,...) → estimateNameFee(wallet,...).
+---
+
+USER: I run it, and got in the main screen in all wallets I had in localStorage from before the message "Invalid wallet" in the wallet card.
+
+CLAUDE: Bug: WalletCard's derived useMemo still referenced `networks` (removed from props) when calling deriveWallet(). Fixed by replacing the deriveWallet call with a direct getRoot() validity check (returning true/false) using wallet.conf.network which is now always available on the enriched wallet.
+---
+
+USER: wallet object should have conf inside it. I dont want a raw localStorage wallet object exposed. The read/write to localStorage should be inside wallet_db.js and only store the fields that need to be stored.
+
+CLAUDE: wallet_db.js: loadWallets(networks) now attaches conf to each wallet on load; saveWallets(wallets) strips to WALLET_STORED_FIELDS before writing — localStorage boundary is fully encapsulated. wallet.jsx: single wallets state initialized via loadWallets(getNetworks(loadServers())); useEffect([networks]) refreshes conf when servers change; addWallet attaches conf inline; enrichedWallets removed entirely.
+---
+
+USER: what is "hydrated wallet"? all data for wallets should just be inside the wallet object. function that adds data into wallet should be idempotent (skip if already there).
+
+CLAUDE: Removed store.data and hydrateWalletData. Added walletStore (id→single wallet instance) and loadWalletCache(wallet) — reads IndexedDB, re-derives keyPairs, Object.assigns fields directly into wallet; idempotent (skips if wallet.addrs defined). loadWallets returns the same object instance per wallet (conf updated in-place if networks change). fetchWalletData Object.assigns fetched data into wallet and returns it. Renamed serializeWalletData→serializeWallet (takes wallet directly). Removed getWalletData export. wallet.jsx: all _init/getWalletData(wallet.id) and _cached/getWalletData(wallet.id) replaced with wallet.* directly.
+---
+
+---
+USER: I want the listUnspentForAddr() information to be fetched as part of the wallet object data fetching (from cache, and then updated from electrum). So that inside send_tx() kv_tx_add() kv_tx_edit() kv_tx_send() it will call a sync (not async) function, which will get the info from the wallet object.
+
+CLAUDE: Changed kv_tx_add, kv_tx_edit, kv_tx_send, tx_send from async to sync functions. New signatures: (wallet, ...) — read wallet.utxos/addrs/changeAddrInfo/conf directly. No more async UTXO fetching inside these functions. In wallet.jsx: SendScreen and InscribeScreen now take {wallet, onSent} instead of individual props; WalletDetailScreen drops changeAddrInfo and allUTXOs local state (wallet object holds the data); NameTransferScreen/NameEditScreen drop local addrs state; all four tx calls are now plain sync (no await).
+---
+
+---
+USER: can kv_tx_add() be used instead of calling estimateInscriptionFee() (in wallet.jsx)? yes
+
+CLAUDE: Replaced estimateInscribeFee() with kv_tx_add() for fee estimation in InscribeScreen. useState initializer now uses conf.fee_def. The fee useEffect calls kv_tx_add(wallet, key, val, fee, feeRate) in a try/catch and sets exactFee. Removed estimateInscribeFee from wallet.jsx imports and deleted it from wallet_db.js.
+---
+
+---
+USER: fee stays static at initial 0.05 when modifying key/val in InscribeScreen
+
+CLAUDE: Root cause: kv_tx_add called with fee=conf.fee_def=5000000 as the initial mining fee; bitcoinjs extractTransaction(false) rejects it because 5000000/180vbytes ≈ 27778 sat/vbyte exceeds fee_max/1000=10000. Added forEst=false parameter to kv_tx_add (passed through to kv_tx_new_build/extractTransaction). Changed InscribeScreen useState initializer and fee estimation useEffect to call kv_tx_add(..., true) so fee validation is skipped during estimation. Real send path still uses forEst=false.
+---
+
+---
+
+USER: can estimateNameFee() be eliminated in the same way by calling kv_tx_edit()?
+
+CLAUDE: Eliminated estimateNameFee() by:
+1. Added forEst parameter to kv_tx_edit() and threaded it through both kv_tx_edit_build() calls
+2. Added forEst parameter to kv_tx_send() and threaded it through both kv_tx_send_build() calls
+3. Updated NameEditScreen to use kv_tx_edit(..., true) for fee estimation (useState + useEffect)
+4. Updated NameTransferScreen to use kv_tx_send(..., true) with wallet.changeAddrInfo?.address as dummy address for fee estimation
+5. Deleted estimateNameFee() from wallet_db.js
+6. Removed estimateNameFee from wallet.jsx imports
+7. Removed changeAddrInfo state from both screens (no longer needed)
+
+---
+
+---
+
+USER: estimateFee() already fetches fee rate as part of fetchWalletData(), so no need to call it again in wallet.jsx screens
+
+CLAUDE: Removed all estimateFee() calls from wallet.jsx. All 4 screens (SendScreen, InscribeScreen, NameTransferScreen, NameEditScreen) now initialize feeRate from wallet.feeRate||conf.fee_def instead. Removed estimateFee from import.
+
+---
+
+---
+
+USER: why does wallet.feeRate||conf.fee_def have the fallback? wallet.feeRate should always be set
+
+CLAUDE: Removed all ||conf.fee_def fallbacks. wallet.feeRate is always set before these screens are shown (gated on allAddrs.length>0 which requires fetchWalletData to have run).
+
+---
+
+---
+
+USER: why is feeRate passed around so much? it's internal to the wallet object
+
+CLAUDE: Removed feeRate as a parameter from kv_tx_add, kv_tx_edit, kv_tx_send, tx_send in wallet_db.js — all now read wallet.feeRate directly. Removed feeRate local state from all 4 screens in wallet.jsx. Removed the feeRate-only useEffects from NameTransferScreen and NameEditScreen (redundant with useState initializer). Updated useEffect deps and all call sites accordingly.
+
+---
+
+---
+
+USER: wallet.feeRate passed as fee argument is a bug — it's a rate (sat/kB) not an absolute sat amount. fix it
+
+CLAUDE: Fixed the 3 estimation call sites in wallet.jsx that were passing wallet.feeRate (a sat/kB rate) as the fee (absolute sats) argument. Changed to fee=1 which gives a valid tx for size measurement — exactFee = calcFee(wallet.feeRate, tx) then returns the correct absolute fee. Also fixed catch fallbacks from returning wallet.feeRate to returning 0.
+
+---
+
+---
+
+USER: switch KeyData._editVal → KeyData.val (newest value), KeyData.val → KeyData._val_orig
+
+CLAUDE: Renamed _editVal to val so keyData.val always holds the newest/current value. Three changes: onEdit sets val instead of _editVal, kv_tx_edit reads keyData.val instead of keyData._editVal, NameEditScreen displays keyData.val. The initial val set from on-chain data in fetchWalletData is already correct (val = on-chain value until an edit is initiated).
+
+---
+
+---
+
+USER: set _val_orig when edit is initiated in onEdit handler
+
+CLAUDE: onEdit now saves _val_orig: d.val before overwriting val with the new edit value. keyData._val_orig = on-chain value, keyData.val = pending edit value.
+
+---
+
+---
+
+USER: if fee=0 compute fee from feeRate internally; if fee>0 use that fee directly as final fee
+
+CLAUDE: Simplified all four tx functions (kv_tx_add, kv_tx_edit, kv_tx_send, tx_send): fee=0 (default) triggers a one-pass size estimation (builds with fee=1 to get vsize, computes fee=calcFee(wallet.feeRate,tx)), fee>0 uses provided fee directly — no two-pass recalculation. Removed exactFee recalculation, return {exactFee:fee, tx}. Updated all estimation call sites in wallet.jsx from fee=1 to fee=0, including InscribeScreen useEffect.
+
+---
+
+---
+
+USER: remove forEst parameter — it's no longer needed
+
+CLAUDE: Removed forEst from kv_tx_add, kv_tx_edit, kv_tx_send signatures and their final build calls. The fee is now always computed from wallet.feeRate so it's always within fee_max — no need to bypass extractTransaction validation. Internal estimation passes still use forEst=true (fee=1) but that's hardcoded. Updated all call sites in wallet.jsx.
+
+---
+
+---
+
+USER: forEst still appears in wallet_db.js — remove it everywhere
+
+CLAUDE: Removed forEst from all four build functions (tx_send_build, kv_tx_new_build, kv_tx_send_build, kv_tx_edit_build) and all call sites. All extractTransaction() calls now have no argument. Fee=1 for internal size estimation is below maximumFeeRate so no bypass needed. Also removed the two true args from SendScreen's inline tx_send_build estimation calls in wallet.jsx.
+
+---
+
+---
+
+USER: why is tx_send_build called in wallet.jsx? tx_send() is enough
+
+CLAUDE: Replaced SendScreen's manual tx_send_build+calcFee fee estimation with tx_send(wallet, changeAddrInfo.address, amount).fee. Removed tx_send_build, calcFee from imports and the now-unused network const in SendScreen.
+
+---
+USER: In many places there is wallet.name||''. what is the location of wallet initialization? that is the place to set name to a string (whether new wallet, or wallet ready from localStorage), and from there on no need for the ||''
+
+CLAUDE: In loadWallets() in wallet_db.js, added name: w.name||'' when constructing the wallet object so name is always a string. Removed the ||'' fallback from wallet.jsx line 555.
+
+---
+
+USER: in kv_tx_add() why not call kv_tx_add(fee=1) for estimation instead of kv_tx_new_build? yes refactor all four
+
+CLAUDE: Replaced all manual _build estimation calls with self-calls at fee=1: kv_tx_add uses kv_tx_add(...,1), kv_tx_edit uses kv_tx_edit(...,1), kv_tx_send uses kv_tx_send(...,1), tx_send uses tx_send(...,1). All four _build functions are now only called internally.
+
+---
+
+USER: add in Settings screen a button "Debug tools", in the debug tools put a button "Clear cache". This will remove all the wallet cache from idb and from memory, and will force a new wallet reload data from electrum.
+
+CLAUDE: Added cache_clear() to wallet_db.js (clears IndexedDB 'cache' store and strips cached fields from all wallet_store entries). Added Debug Tools section with Clear Cache button to SettingsScreen. Added cacheVer state in BrightWallet, passed through HomeScreen to WalletCard as prop, added to useEffect dependency array so clearing cache triggers re-fetch from electrum.
+
+---
+
+USER: Why is cacheVer needed in so many places? Just clear cache and re-fetch.
+
+CLAUDE: Moved cacheVer to key={cacheVer} on HomeScreen only (in BrightWallet). This remounts HomeScreen and all WalletCards on clear, triggering fresh fetches. Removed cacheVer from HomeScreen and WalletCard props/deps entirely.
+
+---
+
+USER: why does Back on Wallet_screen take 1 second? fix the delay
+
+CLAUDE: The delay was hd_root() (PBKDF2/mnemonicToSeedSync) running synchronously in useMemo in Wallet_card, blocking React from painting. Replaced with bip39.validateMnemonic() which is instant (word list + checksum only). The expensive key derivation stays in wallet_fetch which runs async in useEffect after the screen paints.
+
+---
+
+USER: still slow after bip39.validateMnemonic fix
+
+CLAUDE: Real cause: hd_root (mnemonicToSeedSync/PBKDF2) runs synchronously in wallet_fetch after el_connect resolves, blocking React from painting the screen transition. Added wallet_root(wallet) which caches the BIP32 root on wallet._root so mnemonicToSeedSync only runs once per wallet per session. Both wallet_load_cache and wallet_fetch now use wallet_root().
+
+---
+
+USER: move "Developer tools" into a screen of its own, accessible via a button in Settings screen called "Developer Tools"
+
+CLAUDE: Added DevToolsScreen with Clear Cache button. Settings screen now has a "Developer Tools" button that navigates to dev_tools screen. Added dev_tools to goBack logic (goes back to settings). Moved onCacheClear from SettingsScreen to DevToolsScreen.
+
+---
+
+USER: in dev_tools screen add a button "Reset lifcoin mempool" that calls fetch("/reset_mempool") and shows JSON result
+
+CLAUDE: Added handleResetMempool in DevToolsScreen: fetches /reset_mempool, stores JSON result in state, displays it in a <pre> block below the button. Errors shown as {error: message}.
+
+---
+
+USER: add lifcoin server edit field to DevToolsScreen, default http://localhost:8432, stored in localStorage. fetch uses it as prefix.
+
+CLAUDE: Added LIF_SERVER_DEF='http://localhost:8432', lif_server_load/save helpers. DevToolsScreen now has a Lifcoin Server input with reset button, persisted to localStorage. fetch uses `${lifServer}/reset_mempool`.
+
+---
+
+USER: reset_mempool should be POST not GET
+
+CLAUDE: Changed fetch to use {method: 'POST'}.
+
+---
+
+USER: show curl command on first line, "Fetching..." on second line while loading, replace with result when done
+
+CLAUDE: Added mempoolCmd state. On click: sets curl command line, clears result. Pre block shows curl cmd + newline + "Fetching..." until result arrives, then shows JSON result.
+
+---
+
+USER: add "Enable developer tools" checkbox in settings; Developer Tools button only visible when checked
+
+CLAUDE: Added devToolsEnabled state in SettingsScreen, persisted to localStorage as 'dev_tools_enabled'. Checkbox toggles it; Developer Tools button only renders when checked.
+
+---
+
+USER: hide test networks (test:true in nets_list) in Settings electrum servers and new wallet page when dev tools disabled
+
+CLAUDE: Hoisted devTools state to BrightWallet, passed to SettingsScreen and Wallet_add_screen. Both filter OE(networks) with devTools||!nets_list[key]?.test. SettingsScreen now receives devTools+onDevToolsToggle as props instead of local state.
+
+---
+
+USER: replace Coin dropdown in new wallet screen with radio buttons
+
+CLAUDE: Replaced <select> with radio buttons rendered via map. Each shows symbol — name. networkKey/derivPath updated on change same as before.
+
+---
+
+USER: Send/Receive/Get Domain/Settings should be separate pages; Back returns to wallet overview; remove Overview button
+
+CLAUDE: Moved wallet sub-screens (send, receive, kv_add, wallet_settings) to top-level BrightWallet screens (wallet_send, wallet_receive, wallet_kv_add, wallet_settings). Added them to goBack logic pointing back to wallet_info. Wallet_screen now only shows overview with buttons that call onSend/onReceive/onKvAdd/onSettings. Removed subscreen state, Overview button, and inline sub-screen rendering from Wallet_screen.
+
+---
+
+USER: hide Get Domain button and skip lif_kv processing in wallet_fetch when conf.lif_kv is not true
+
+CLAUDE: Wrapped keyMap/ownedKeys block in wallet_fetch with if (conf.lif_kv). Hidden Get Domain button in Wallet_screen with {conf.lif_kv && ...}.
+
+---
+
+USER: Get Domain simplified to dns/<name>+{site:...}; devtools adds Get Key/Val button with raw kv screen
+
+CLAUDE: Rewrote Kv_add_screen as simplified DNS screen (key=dns/<name>, val={site:...}, no JSON textarea). Added Kv_raw_screen (old full kv screen). Added wallet_kv_raw top-level screen. Get Key/Val button shown only when conf.lif_kv && devTools. Wallet_screen accepts devTools+onKvRaw props.
+
+---
+
+USER: add "Mine lifcoin block" button in dev tools that POSTs /mine
+
+CLAUDE: Added handle_mine_block calling handle_lifnode_post('/mine'). Both buttons shown side by side, shared result pre block moved outside the individual divs.
+
+---
+
+USER: In Send_screen() I want address validation (that it is valid, this this wallet's network). And if invalid - then cannot click Send, and a red error message appear (like the KV screen when the json is invalid)
+
+CLAUDE: Added addrError state in Send_screen. useEffect validates toAddress with bitcoin.address.toOutputScript(toAddress, conf.network) on each change. Red border on address input and red error message shown when invalid. Send button disabled when addrError is truthy.
+
+---
+
+USER: Just like the <Amount> and <Fee> components, create a <Addr> component that includes the validation and red error message inside it.
+
+CLAUDE: Added Addr component after Fee_field. Takes value, onChange, network, placeholder props. Computes error inline (no state/useEffect needed). Renders input with red border and error message below when invalid. Refactored Send_screen and Kv_transfer_screen to use <Addr>; removed addrError state/useEffect from Send_screen (now a derived value), added addrError derived value and <Addr> to Kv_transfer_screen.
+
+---
+
+USER: Can the logic of addrError be moved into the <Addr> component? Also, empty address is invalid so why allow it?
+
+CLAUDE: Removed addrError from both Send_screen and Kv_transfer_screen. Addr component already computes error internally (shows red message only when value is non-empty). Button disabled uses !addr_valid(toAddress,network) which returns false for empty string too, so empty address also disables the button.
+
+---
+
+USER: Why does button Send have the logic of <Addr> in it again? Can <Addr> tell outside if it's valid/invalid?
+
+CLAUDE: Added onValid callback prop to Addr. Calls onValid?.(valid) via useEffect when validity changes. Parents add [addrValid, setAddrValid] = useState(false) and pass onValid={setAddrValid} to Addr. Button disabled uses addrValid state instead of re-calling addr_valid. Removed guard in handleTransfer since button is already disabled when invalid.
+
+---
+
+USER: Make a generic useFormValid hook so components report valid/invalid state and Send button just checks isValid without knowing about individual fields.
+
+CLAUDE: Added useFormValid() hook: holds {key: bool} states map, setValid(key, valid) to update, isValid = all values true. Per screen: one line for the hook, onValid={v=>setValid('addr',v)} per validated field, button uses !isValid. Updated Send_screen and Kv_transfer_screen to use it.
+
+---
+
+USER: In Send_screen() move the amount <input> to a new Amount_field component. UI shows BTC/LIF with decimal, returns sat to caller.
+
+CLAUDE: Added Amount_field component. Holds display string internally, parses to sat on change, calls onChange(sat) and onValid(sat>0). Shows red border/error when non-empty and invalid. Send_screen now stores amountSat as integer sat (not string), removed the isNaN guard (isValid covers it via Amount_field), uses onValid={v=>setValid('amount',v)}.
+
+---
+
+USER: Add optional min prop to Amount_field. If amount < min, field is invalid. Call with min=1.
+
+CLAUDE: Added min=0 default prop to Amount_field. valid = sat > 0 && sat >= min. Send_screen passes min={1}.
+
+---
+
+USER: In Send/Kv_add/Kv_send/Kv_edit screens: show available balance at top using wallet_bal(), add validation that amount+fee<=bal.
+
+CLAUDE: Imported wallet_bal. In each screen: compute bal=wallet_bal(wallet), balOk=amount+fee<=bal (or fee<=bal for kv screens), useEffect setValid('bal',balOk), show Balance row at top, red "Insufficient balance" when !balOk. Added useFormValid to Kv_add_screen and Kv_edit_screen (they didn't have it). Button disabled uses !isValid throughout.
+
+---
+
+USER: In Wallet_screen, move refresh button to top right with just a refresh icon.
+
+CLAUDE: Extracted handleRefresh function. Added flex header row with h2 on left and icon button (↻/⏳) on right, no border/background. Removed old Refresh button from bottom of transactions section.
+
+---
+
+USER: Make the refresh a proper button (with border/background).
+
+CLAUDE: Removed the no-border/no-background style overrides so it renders as a standard button.
+
+---
+
+USER: Move refresh button to top right of the global nav bar (where back button and BrightWallet icon are).
+
+CLAUDE: Added refreshTick+walletLoading state to BrightWallet. Top bar shows ↻/⏳ button on right when screen=='wallet_info'. Wallet_screen accepts refreshTick (added to useEffect deps to re-fetch) and setWalletLoading (syncs local loading state up). Removed old inline refresh button and header flex wrapper from Wallet_screen.
+
+---
+
+USER: Remove text from Settings button (keep only ⚙ icon). Add Refresh button to home screen like wallet_info.
+
+CLAUDE: Settings button now shows only ⚙. Added homeRefreshTick state; home screen shows ↻ and ⚙ buttons side-by-side in top right. Home_screen key is now `${cacheVer}-${homeRefreshTick}` so refresh remounts all Wallet_cards (triggering re-fetch). Both buttons wrapped in a flex div.
+
+---
+
+USER: Add "Settings" hover tooltip to Settings button like Refresh has.
+
+CLAUDE: Added title="Settings" to the Settings button.
+
+---
+
+USER: In Wallet_screen, unconfirmed transactions should appear first.
+
+CLAUDE: Sort transactions on render: unconfirmed (no timestamp) first, then by descending timestamp.
+
+---
+
+USER: In Wallet_screen transactions list, show KV lines under each transaction: green=received confirmed, orange=received unconfirmed, red=sent out. Does not replace Names section.
+
+CLAUDE: Restructured tx list items from flex row to column. Added kvReceived (ownedKeys filtered by tx_hash) with _kstatus coloring, and kvSent (tx._vtx.vout lif_kv entries going to non-wallet addresses, always red). Prefix ↓ for received, ↑ for sent. addrSet computed per row and reused for onSelectTx.
+
+---
+
+USER: KV lines in Transactions section should look exactly like Names section: key left with color, value right truncated with ellipsis, no overflow.
+
+CLAUDE: Replaced plain div KV lines with flex rows matching Names section exactly: key span left (monospace, colored), value span right (overflow:hidden, textOverflow:ellipsis, whiteSpace:nowrap, maxWidth:220, color:#666).
+
+---
+
+USER: Why do values get truncated even when there's enough space?
+
+CLAUDE: Replaced maxWidth:220 with flex:1;minWidth:0 on value spans, and flexShrink:0 on key spans. Now value takes all remaining space and only truncates when truly needed.
+
+---
+
+USER: Extract KV line rendering into a shared component used by both Names section and Transactions section.
+
+CLAUDE: Added kv_color(kstatus) helper and Kv_line({kv_key, kv_val, color, fontSize=13, mt=0}) component. Names section li now contains <Kv_line> instead of inline spans. Transactions kvReceived and kvSent each use <Kv_line fontSize={11} mt={2}>. Rendering logic written once.
+
+---
+
+USER: In devTools mode, in Wallet_screen, when there are unconfirmed transactions, show a "Mine block" button before Settings.
+
+CLAUDE: Added conditional button: shown when devTools && transactions.some(tx=>!tx.timestamp). Calls lif_server_load()+'/mine' via POST. Shows alert on error.
+
+---
+
+USER: Refetch wallet data after mining.
+
+CLAUDE: After mine POST succeeds, calls setLoading(true), wallet_apply(await wallet_fetch(wallet, true)), setLoading(false) in finally.
+
+---
+
+USER: In Tx_info_screen, show the fee after outputs.
+
+CLAUDE: Added fee calculation after outputs: totalIn (sum of vin._prevVout.value) - totalOut (sum of vout.value). Shown as <Amount> only when fee>0 (skips coinbase txs with no prevVout data).
+
+---
+
+USER: Show fee in red with minus sign.
+
+CLAUDE: Changed to <Amount sat={-fee} symbol={symbol} signed /> — negative value triggers red color and minus sign via the existing Amount component logic.
+
+---
+
+USER: In Tx_info_screen, show KV values under relevant inputs/outputs.
+
+CLAUDE: Wrapped each input/output in a div. Added Kv_line rows for vin._prevVout.lif_kv (inputs) and vout.lif_kv (outputs). KV lines inherit the same color as their parent line (red for ours in inputs, green for ours in outputs, inherit otherwise).
+
+---
+
+USER: Move tx fee calculation to wallet_db.js as tx.fee field.
+
+CLAUDE: Added fee calculation in wallet_db.js where transactions are built: totalIn-totalOut from enrichedVin/_prevVout and vtx.vout, stored as tx.fee (null for coinbase). Tx_info_screen now just reads tx.fee directly.
+
+---
+
+USER: Addr_field should auto-trim whitespace, not callers.
+
+CLAUDE: Added .trim() in Addr_field's onChange so callers always receive a trimmed value.
+
+---
+
+USER: Auto-trim KV key/domain name in Kv_add_screen and Kv_add_raw_screen.
+
+CLAUDE: Added .trim() to onChange for name input in Kv_add_screen and kv_key input in Kv_add_raw_screen.
+
+---
+
+USER: Auto-trim site field in Kv_add_screen.
+
+CLAUDE: Added .trim() to onChange for site input in Kv_add_screen.
+
+---
+
+USER: Move Settings button to the right side of the wallet name title line.
+
+CLAUDE: Replaced plain h2 with a flex row (h2 left, ⚙ button right). Removed Settings button from the action buttons row.
+
+---
+
+USER: In Kv_info_screen, show "View Transaction" button only in devTools mode.
+
+CLAUDE: Added devTools prop to Kv_info_screen, passed from BrightWallet. Wrapped View Transaction button with {devTools && ...}.
+
+---
+
+USER: Rename "Transfer" to "Transfer Domain" and style it red like Delete Wallet button.
+
+CLAUDE: Renamed button to "Transfer Domain", applied style color:#c00, border:1px solid #c00, background:transparent — matching Delete Wallet button.
+
+---
+
+USER: In Kv_info_screen, if kv_is_dns(key), show clickable https links for each LIF_DOMAINS entry, between title and Value.
+
+CLAUDE: Imported kv_is_dns, LIF_DOMAINS from wallet_db.js. Added IIFE block before Value section: if kv_is_dns(key) returns dns, renders a div with one <a> link per LIF_DOMAINS entry (https://${dns}.${domain}).
+
+---
+
+USER: Add QR code of the address in Receive_screen.
+
+CLAUDE: Installed qrcode npm package. Added useRef import and QRCode import. Added canvasRef + useEffect calling QRCode.toCanvas on address change. Canvas rendered above the address text, 220px wide.
+
+---
+
+USER: Add QR scan icon inside Addr_field on the left of the input — clicking opens camera to scan address.
+
+CLAUDE: Added QR scan button (⬛) to left of input in Addr_field. Uses BarcodeDetector API + getUserMedia. On click: opens camera stream in a fullscreen overlay with a video element. Scans frames via requestAnimationFrame, on QR detection calls onChange(result) and stops camera. Cancel button stops stream. Falls back to alert if BarcodeDetector not supported.
+
+---
+
+USER: Use browser/qrcode.svg for the QR scan icon in Addr_field.
+
+CLAUDE: Replaced ⬛ text with <img src={import.meta.resolve('./qrcode.svg')} style={{width:20,height:20}} /> inside the button.
+
+---
+
+USER: Move QR icon to the right side of Addr_field.
+
+CLAUDE: Swapped order — input first (flex:1), QR button after it.
+
+---
+
+USER: Replace all native alert(...) calls in wallet.jsx with await modal.alert(...), adding const modal = useModal(); to each affected component/function.
+
+CLAUDE: Replaced all 20 native alert() calls across 8 functions/components (Addr_field, Wallet_screen, Send_screen, Kv_add_screen, Kv_add_raw_screen, Kv_send_screen, Kv_edit_screen, Settings_screen) with await modal.alert(). Added const modal = useModal(); as first line in each function body. Changed return alert(...) to return await modal.alert(...) for early-return cases. Made Settings_screen.handleSave async to support await.
+
+---
+
+USER: Replace alert()/confirm() with a modal overlay with X button and click-outside to close.
+
+CLAUDE: Added ModalContext/ModalProvider/useModal hook. Modal shows a centered white card over a dark overlay; X button and clicking outside both close it; message uses white-space:pre-wrap. Wrapped app in ModalProvider via App component. Added const modal=useModal() to 8 components and replaced all alert() calls with await modal.alert(). Settings handleSave made async.
+
+---
+
+---
+
+USER: In the 'Name Transferred' alert message, in regular mode, don't show the TXID and the explorer link. In dev_tools mode, show the TXID and show a link 'View in block explorer' that will link the block explorer URL for that TX.
+
+CLAUDE: Added devTools prop to Kv_send_screen and passed it from BrightWallet. Changed the Name transferred alert to show just "Name transferred!" in regular mode, and in devTools mode show JSX with TXID + clickable "View in block explorer" link using conf.explorer_tx URL.
+
+---
+
+---
+
+USER: Add to Mine_screen another radio button for "Mining pool" that will call mine_instant_pool()
+
+CLAUDE: Added "Mining pool" radio button to Mine_screen. Imported mine_instant_pool from wallet_db.js, added 'pool' to the radio button array with label "Mining pool", and added else-if branch calling mine_instant_pool({wallet, reward_share: 1, on_update}).
+
+---
+
+---
+
+USER: After clicking stop mining, stats should still appear. Also show what mining method was used. Stats only clear when clicking start again.
+
+CLAUDE: Added activeMode state (set on start, persists after stop). Changed stats table condition from {on && to {stats && so it stays visible after stopping. Added Method row showing solo/instant/pool label. Stats cleared via setStats(null) only when starting a new session.
+
+---
+
+---
+
+USER: why is activeMode needed? there already is a mode
+
+CLAUDE: Removed activeMode state — mode already holds the correct value since radio buttons are hidden while mining, so it never changes during a session. Replaced activeMode references with mode.
+
+---
+
+---
+
+USER: Stats stopped showing in solo mode after changes
+
+CLAUDE: Changed condition from {stats && to {(on || stats) && — shows table immediately while mining (with "…" placeholders), and keeps it visible after stopping if stats were populated.
+
+---
+
+---
+
+USER: Stats still disappear when clicking stop
+
+CLAUDE: Removed setStats(null) from the start logic. Stats now persist naturally and get overwritten by the first update when mining restarts. This prevents the (on || stats) condition from going false on stop.
+
+---
+
+---
+
+USER: Stats still disappear when clicking stop mining
+
+CLAUDE: Added frozenStats state, updated via useEffect whenever stats is non-null. Changed condition to (on || frozenStats) and display values use displayStats = on ? stats : frozenStats. This ensures stats persist regardless of what happens to the stats state when mining stops.
+
+---
+
+---
+
+USER: why add more variables? just don't clear stats until clicking start mining again
+
+CLAUDE: Removed frozenStats/displayStats complexity. Real fix: guarded the etask update handler with `if (up) setStats(up)` — the etask was emitting null/undefined on cancel, which cleared stats. Now stats only clear via setStats(null) on start, and persist after stopping.
+
+---
+
+---
+
+USER: Stats still disappear when clicking stop
+
+CLAUDE: Something in the etask/React cycle was clearing the stats state. Added module-level mining_stats variable (same pattern as mining_et) to hold last stats outside React. The stats state is kept only as a render trigger. mining_stats is set alongside setStats on update, cleared on start. Table condition uses (on || mining_stats).
+
+---
+
+---
+
+USER: Add in wallet page, on the left of existing mining button, a button to go to Mine_pool_screen. Display this button only for wallets with balance over 50 LIF.
+
+CLAUDE: Added onMinePool prop to Wallet_screen. Button shows left of existing mine button only when netconf.lif_kv && balance >= 50*1e8. Wired up wallet_mine_pool screen in BrightWallet with back navigation and Mine_pool_screen rendering.
+
+---
+
+---
+
+USER: In lif-kernel/server_lib.js, upon receiving a websocket request to /.lif/electrum, proxy it to ws://localhost:8432/
+
+CLAUDE: Added WebSocket to the ws import. Added wss_electrum WebSocketServer and a proxy handler in ws_upgrade for /.lif/electrum: upgrades the client connection, opens WebSocket to ws://localhost:8432/, pipes messages bidirectionally, closes both sides on disconnect or upstream error.
+
+---
+
+---
+
+USER: When a user wants to purchase a new domain, he is transferred to /?get_domain=mydomain.lif.zone. Detect this, select best LIF wallet (highest balance, or first, or create new), go to Get_domain_screen. LIF wallet selection/creation in a separate function.
+
+CLAUDE: Added select_lif_wallet() standalone function: filters wallets by network=='lif', picks highest balance (or first if all zero), or creates new LIF wallet if none exist. In BrightWallet mount useEffect: detect ?get_domain=, strip LIF_DOMAINS suffix, call select_lif_wallet, set activeWalletId and navigate to wallet_get_domain screen. Added wallet_get_domain screen rendering Get_domain_screen with defaultName prop. Added defaultName prop to Get_domain_screen, pre-fills name state.
+
+---
+
+---
+
+USER: Clicking <Amount> should cycle display modes: usd/coin/sat. Stored in settings.ls.amount. USD rounds up to 2 decimals using netconf.usd price. Sat is integer. Mode is global (all Amount components update).
+
+CLAUDE: Added Amount_context and Amount_provider with mode state persisted to settings.ls.amount (default 'usd'). Updated Amount component to consume context, cycle modes on click (usd→coin→sat→usd), render accordingly. USD uses Math.ceil for upward rounding, looks up price from settings.netconf by symbol. Wrapped App in Amount_provider.
+
+---
+
+---
+
+USER: Bug: clicking <Amount> both changes mode AND triggers parent click (wallet card, transaction row). Amount click should eat the event.
+
+CLAUDE: Added e.stopPropagation() in next_mode handler so clicks don't bubble to parent elements.
+
+---
+
+---
+
+USER: Are Amount_field and Fee_field the same? Can they be merged?
+
+CLAUDE: No - they are different. Fee_field displays a computed fee as <Amount> that the user can click to edit inline (takes netconf, no validation). Amount_field is a free-text input for user to type an amount (takes symbol + onValid + min). Different UX patterns, not worth merging.
+
+---
+
+---
+
+USER: Fee_field should have an edit button (✎) to the left of <Amount> instead of click-to-edit. Clicking it switches to <Amount_field>. Add missing features to Amount_field to support this.
+
+CLAUDE: Added value→initial string, onBlur, and autoFocus props to Amount_field (value was already a prop but ignored). Rewrote Fee_field: shows <Amount> + ✎ button in display mode, switches to <Amount_field value={value} autoFocus onBlur={()=>setEditing(false)}> in edit mode.
+
+---
+
+---
+
+USER: Amount_field should show a clickable unit label ($ LIF, LIF, sat LIF) to the right that cycles global mode. On mode change, convert value to new mode's format. On blur, normalize (2 dec for usd, 8 for coin, integer for sat).
+
+CLAUDE: Rewrote Amount_field: consumes Amount_context for mode/set_mode. Added sat_to_str/str_to_sat helpers. useEffect with prev_mode ref converts str when mode changes. handle_blur normalizes on exit. Unit label is clickable (stopPropagation), cycles AMOUNT_MODES. Placeholder adapts per mode.
+
+---
+
+---
+USER: add to Kv_add_screen() a widget <Wallet_backup_validate>. This widget checks if in the wallet storage there is a backup date (a new field this widget will add). If there is a backup date, then this widget is "empty". But if there is no backup date, it tells "Write down your wallet seed words", shows the words in a box (like in the Wallet_add_screen), and below it a click <I wrote it down>. Once you click on it, the words in the top box turn into hidden '*' (like in Kv_add_screen), the <I wrote it down> button changes to <I forgot the seed words>, and below it is an empty box - requesting you to write down these words again (from your backup), and below it a disabled button <Continue>. the button becomes enabled once the words are written in correctly in the new box. If <I forgot the words> is clicked - the widget returns to the initial state: showing the words, and waiting for you to click <I wrote it down>. Once you clicked <Continue> and everything is successfull, in the wallet local storage (ls) you keep the date of the backup_test, and the whole widget turns "empty" (disappears).
+
+CLAUDE: Added Wallet_backup_validate component before Kv_add_screen in wallet.jsx. The widget:
+- Returns null if wallet.ls.backup_date is already set
+- phase='show': displays mnemonic in a readonly textarea with an orange border, "I wrote it down" button
+- phase='verify': textarea shows mnemonic replaced with '*' (non-space chars), "I forgot the seed words" button resets to show phase, a new textarea for re-entry, and a "Continue" button disabled until input matches mnemonic
+- On Continue: calls onUpdate({backup_date: Date.now()}) which persists via existing updateWallet mechanism
+- Added onUpdate prop to Kv_add_screen signature and its call site in BrightWallet
+---
+
+---
+USER: it has a bug: I clicked "Continue", and the widget did not close/disappear
+
+CLAUDE: Fixed by adding local `done` state to Wallet_backup_validate. The root cause: onUpdate mutates wallet.ls in place then calls setWallets(wallets_get()), but wallets_get() returns the same g_wallets object reference so React may skip the parent re-render. Fix: handle_continue now also calls setDone(true), so the component returns null immediately from its own state update.
+---
+
+---
+USER: Add a widget <Mine_fund>. it will get the target amount needed as 'value', 'start' (true/false) and whether to immediately start mining. it checks the current wallet's balance. if bal>=value, then the widget is 'empty'. If the balance is not sufficient, it shows a "Available {bal} / Cost {value}" and a progress bar for the mining. The logic for instant mining and getting progress updates is in Mine_screen() (mine_instant, not mine_solo).
+
+CLAUDE: Added Mine_fund component before Mine_screen in wallet.jsx. Props: wallet, value, start.
+- Returns null when wallet_bal(wallet) + winV >= value (widget disappears)
+- Auto-starts mining on mount if start=true
+- Uses mine_instant in etask loop (same pattern as Mine_screen), tracks winV via ref+state
+- Shows "Available {effectiveBal} / Cost {value}" with Amount components
+- Progress bar: green fill, width = min(effectiveBal/value*100, 100)%
+- Shows "Mining… {hps} H/s" when on, Start/Stop mining button
+- Cleans up etask on unmount
+---
+
+---
+USER: Use that widget in Kv_add_screen(), below the Fee field (just above the Register button).
+
+CLAUDE: Added <Mine_fund wallet={wallet} value={fee} start={!balOk} /> between Fee_field and the Register button in Kv_add_screen. value=fee (cost of the transaction), start=!balOk (auto-starts mining if balance is already insufficient).
+---
+
+---
+USER: Also, move the Wallet_backup() widget below the Mine_fund() (Above the "Register")
+
+CLAUDE: Moved <Wallet_backup> from the top of Kv_add_screen's JSX to below <Mine_fund>, just above the Register button. Order is now: form fields → Fee_field → Mine_fund → Wallet_backup → Register button.
+---
+
+---
+USER: I created a new wallet. 0 TXes. the "Receive" button is disabled. Why?
+
+CLAUDE: The Receive button had disabled={!allAddrs.length}. allAddrs comes from wallet.c.addrs which is only populated after network sync. A new wallet has no synced addrs yet. Since Receive only needs wallet.c.receiveAddress (always derived from HD key, no sync needed), removed the disabled condition from the Receive button entirely.
+---
+
+---
+USER: "Get domain name" button is also disabled when there is 0 balance. It should always be enabled, since if there is no balance - an instant mining will appear
+
+CLAUDE: Removed disabled={!allAddrs.length} from the "Get Domain Name" button. Left the raw KV devtools button unchanged. The Mine_fund widget inside Kv_add_screen handles the case of insufficient balance.
+---
+
+---
+USER: move lines 1759-1760 of Balance to a new <Balance_available> widget that shows the balance, and optionally gets a cost parameter of how much balance is needed, and if there is less than needed - it tells "insufficient balance". Also find other places with this pattern and use this new widget to simplify the code.
+
+CLAUDE: Created Balance_available({sat, symbol, cost}) component before Fee_field. Shows "Balance: {sat}" and optionally "Insufficient balance" in red if sat<cost. Replaced the two-line pattern in 5 places: Send_screen (cost=amountSat+fee), Kv_add_screen (cost=fee), Kv_transfer_screen (cost=fee), Kv_edit_screen (cost=fee), Get_domain_screen (cost=fee).
+---
+
+---
+USER: In Wallet_settings_subscreen, there is a bug - the mnemonic field is single line, not multi-line. Instead of fixing it, use the Wallet_backup() widget. When clicking 'Backup Wallet' it opens the widget. the widget should have also a <Cancel> button. The widget should update local storage as 'backed up' only if successfully backed up.
+
+CLAUDE: Added onCancel and force props to Wallet_backup. Cancel button appears in both phases (show and verify) when onCancel is provided. force bypasses the backup_date early-return check. handle_continue calls onCancel?.() after success so the parent closes it too. Reworked Wallet_settings_subscreen: removed revealed state, mnemonic input, passphrase display, and toggle button. Added showBackup state. "Backup Wallet" button sets showBackup=true; widget renders with force and onCancel=()=>setShowBackup(false). Button hides while widget is open.
+---
+
+---
+USER: The 'Delete wallet' needs protection. It should ask you - Are you sure you want to delete wallet? Write "yes delete" in the box, and <Delete> <Cancel> buttons. The <Delete> button is disabled until 'yes delete' is written (case insensitive). Put it in a <Wallet_delete> component.
+
+CLAUDE: Created Wallet_delete({onDelete, onCancel}) component before Wallet_settings_subscreen. Shows a red-bordered box with instruction text, an input, and Delete (disabled until input.trim().toLowerCase()=='yes delete') + Cancel buttons. Added showDelete state to Wallet_settings_subscreen; when true renders Wallet_delete replacing the bottom button row.
+---
+
+---
+USER: the <Delete> button is not disabled (visibly) when 'yes delete' is not written. It is disabled technically, but visually not.
+
+CLAUDE: The custom inline styles (color:#c00, border, background) were overriding the browser's default disabled appearance. Fixed by conditionally applying grey styles (color:#aaa, border:#aaa, cursor:default) when !confirmed, and red styles only when confirmed.
+---
+
+---
+USER: the progress bar - needs to progress according to mine_percent() (returns a number from 0 to 1). its arguments win_h total_h are received by the mine_instant on('update')
+
+CLAUDE: Changed progress calculation in Mine_fund from balance-based (effectiveBal/value) to mine_percent(stats)*100, where stats already contains win_h and total_h from the on('update') handler. Progress resets to 0 when not mining.
+---
+
+---
+USER: the Mine_fund widget, when completing successfully mining should NOT close. It should stay open, the progress bar should move to the end, and it should tell 'Successfully mined $1.23 LIF!'
+
+CLAUDE: Added successV state. When a win brings effectiveBal>=value, stops mining and sets successV=winVRef.current. Early return null now only fires when !successV && effectiveBal>=value (already funded before mining). progress=100 when successV set. Shows green "Successfully mined <Amount>!" message; hides Start/Stop buttons on success.
+---
+
+---
+USER: After winning, balance is not updated in the page (it still tells above the Mine_fund widget 'insufficient balance'). what is the problem? how can it be fixed?
+
+CLAUDE: Problem: wallet_bal(wallet) reads wallet.c.utxos which only updates after network sync. Mine_fund tracked winV internally but Balance_and_mine and parent balOk never saw those earnings. Fix: added onEarned prop to Mine_fund (called each win), Balance_and_mine now owns earned state (shows effectiveBal=bal+earned, checks insufficient against it, bubbles up via onEarned prop), and each screen (Kv_add, Kv_transfer, Kv_edit, Get_domain) adds earned state + passes onEarned={setEarned} to Balance_and_mine, recomputing balOk = fee <= bal+earned so form validity and Register button also update.
+---
+
+---
+USER: I don't understand: why does it have to do modifications outside <Balance_and_mine>? isn't it all internal to it?
+
+CLAUDE: User was right. Reverted all parent earned state changes. Balance_and_mine now has onSufficient prop - it tracks earned internally, computes effectiveBal=bal+earned, and calls onSufficient(!insufficient) via useEffect when sufficiency changes. Parents just pass onSufficient={ok=>setValid('bal', ok)} - no earned state needed in parents. Mine_fund still calls onEarned={setEarned} internally within Balance_and_mine.
+---
+
+---
+USER: today there is logic in Get_domain() that checks if a LIF wallet already exists, and if not - creates it. Change the name of the newly created LIF wallet to "My first LIF wallet".
+
+CLAUDE: Changed the auto-created wallet name in select_lif_wallet() from 'Wallet #'+n to 'My first LIF wallet'. Also removed the now-unused `n` variable.
+---
+
+---
+USER: today there is logic in Get_domain() that checks if a LIF wallet already exists, and if not - creates it. Move this logic outside of Get_domain() and make it global: whenever opening BrightWallet, it checks whether a LIF wallet exists, and creates one if not.
+
+CLAUDE: Extracted creation logic from select_lif_wallet() into ensure_lif_wallet(). select_lif_wallet() now only picks the best (highest balance) LIF wallet. ensure_lif_wallet() is called in BrightWallet's useState initializer for wallets, so it runs once on mount before any rendering.
+---
+
+---
+USER: When I click to create a new wallet, at the end of the process - today - it goes back to the wallet cards screen. Instead it should go into the wallet screen that it created.
+
+CLAUDE: Changed onAdd in BrightWallet from addWallet(w_ls); goHome() to addWallet(w_ls); setActiveWalletId(w_ls.id); setScreen('wallet_info') so after creation it navigates directly into the new wallet's transaction screen.
+---
+
+---
+USER: In Wallets main page (where transactions are shown), when there are no transactions, add a "Mine and get $LIF into wallet". Clicking on it goes into the Mine_screen(), with 'start' argument, so that it starts mining immediately.
+
+CLAUDE: Added start prop to Mine_screen; useEffect calls toggle() on mount when start=true. Added mineStart state to BrightWallet; onMine now takes an optional autoStart param. Mine_screen receives start={mineStart}. In Wallet_screen, replaced "No transactions yet." plain text with a div containing the text plus a "Mine and get $LIF into wallet" button that calls onMine(true).
+---
+
+---
+USER: There is a bug - instant/solo mining can only be done once at a time per-wallet - a global variable/global mining handle for each wallet. This should be a global per-wallet state, and when mining, then in all wallet page on top, should appear an on/off switch. And in wallet card that is mining should also show an on/off button. There is a bug today, that if I start mining, then click "Back", it "forgets" its mining - and continues mining in the background. And when I click again into the mining page, it tells its not mining, and if I start it - it will have two minings in parallel.
+
+CLAUDE: Lifted all mining state/logic out of Mine_screen into a useMining() hook at BrightWallet level. Added Mining_ctx context provided by BrightWallet. useMining manages handles (etask+runningRef+intervalId per wallet) in a useRef and reactive state (on/mode/stats/elapsed/lastStatus per wallet) in useState. Mine_screen now reads state and calls toggle from context — no own state. Navigating away and back shows correct live state. Wallet_screen header toggles between "Get free LIF" and "⏹ Stop mining" button based on miningOn. Wallet_card shows "⏹ Stop mining" button (with stopPropagation) when miningOn. Mode radio buttons disabled while on.
+---
+
+---
+USER: in Wallet cards - when "Mining" button appears on a card - clicking on it should not stop the mining, rather it should just open the wallet's mining page, where he can click to stop the mining.
+
+CLAUDE: Changed Wallet_card mining button to navigate to mine page instead of stopping. Added onMine prop to Wallet_card and Home_screen. BrightWallet passes onMine={(id)=>{ setActiveWalletId(id); setScreen('wallet_mine'); }} to Home_screen. Button label changed to "⛏ Mining…" and calls onMine() with stopPropagation.
+---
+
+---
+USER: Create a new widget <Mine_on>. It is per-wallet. It will be empty if that wallet is not mining at the moment. If it is mining, it will be text '🔴 Mining', which is clickable. clicking it will move you into that wallet's mining page. Use it in the Wallet card.
+
+CLAUDE: Added Mine_on({wallet, onMine}) widget near Amount. Reads Mining_ctx, returns null if not mining, otherwise renders a clickable '🔴 Mining' span. Used in Wallet_card: replaced the button with a stopPropagation wrapper div containing <Mine_on wallet={wallet} onMine={onMine} />. Removed unused miningOn/miningState from Wallet_card.
+---
+
+---
+USER: In Wallet_screen, Move the "Mine" and "Mining pool" from the top line to the line of "Send" "Receive" etc. In the top line put the <Mine_on> widget.
+
+CLAUDE: Removed the mining buttons from the top header div, replaced with <Mine_on wallet={wallet} onMine={onMine} />. Added Mine and Mining pool buttons to the Send/Receive button row (Mining pool only shown when balance>=50*1e8). Removed unused miningState/miningToggle/miningOn from Wallet_screen.
+---
+
+---
+USER: In the Wallet_settings screen, Move Backup Wallet to the top (Under "Wallet Settings", before "Name"). Move also "Delete Wallet" button to the left of that line.
+
+CLAUDE: Restructured Wallet_settings_subscreen: header row now has "Wallet Settings" h3 on the left and Delete Wallet + Backup Wallet buttons on the right. Wallet_delete and Wallet_backup widgets render below the header row (before the Name field). Removed the old bottom button row.
+---
+
+---
+USER: The "Backup" button disappears when clicked. Should always be there, even if in the middle of a backup process.
+
+CLAUDE: Removed the !showBackup condition from the Backup Wallet button so it always renders.
+---
+
+---
+USER: Add a button (before Backup Wallet) of "Advanced: Off". This will be a global feature. Clicking toggles settings.ls.advanced. "Mining pool" and "Get Key/Val" buttons should appear only in advanced mode (Mining pool also requires 50 LIF balance).
+
+CLAUDE: Added advanced local state + toggle_advanced() in Wallet_settings_subscreen that mutates settings.ls.advanced and calls settings_save(). Added "Advanced: Off/On" button before "Backup Wallet". Changed Mining pool condition from balance>=50*1e8 to settings.ls.advanced && balance>=50*1e8. Changed Get Key/Val condition from settings.ls.devtools to settings.ls.advanced && settings.ls.devtools.
+---
+
+---
+USER: 'Send' and 'Get Key/val' are today disabled if no balance. They should not be disabled. They Get Key/Val should have the mining click - just like the Get Domain screen has when not enough balance.
+
+CLAUDE: Removed disabled={!allAddrs.length} from Send and Get Key/Val buttons in Wallet_screen. Added useFormValid, bal, balOk, and Balance_and_mine widget to Kv_add_raw_screen (same pattern as other screens). Send button now gated on isValid instead of allAddrs.
+---
+USER: Add a widget <Mine_pool_on>. It is similar to <Mine_on>, but just for pool mining. The pool mining reference is also stored per-wallet (like regular mining). And also should be shown on the Wallet_card and top line of the Wallet screen (just next to the <Mine_on> widget). Clicking on it moves you into the Mine_pool_screen.
+
+CLAUDE: Extended useMining with independent pool_state/pool_handles/pool_toggle (separate from regular mining, can run in parallel). pool_toggle uses mine_instant_pool in a while loop. Refactored Mine_pool_screen to read from Mining_ctx (no own state). Added Mine_pool_on widget. Added Mine_pool_on to Wallet_card (onMinePool prop) and Wallet_screen header next to Mine_on. Wired onMinePool through Home_screen and BrightWallet.
+---
