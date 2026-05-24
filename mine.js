@@ -225,17 +225,20 @@ export function mine_stats_calc_default(mode){
   let win_h = Number(target_to_nhash(target_from_compact(m.target)));
   let reward_share, reward;
   let hps = m.hps;
+  let target = m.target;
   if (mode=='solo'){
     reward_share = m.reward_share;
     reward = m.reward*reward_share;
   } else if (mode=='pool'){
+    win_h = Math.floor(win_h/m.nslice);
+    target = target_to_compact(target_from_nhash(win_h));
     reward_share = m.reward_share*m.slice_share;
     reward = Math.Floor(m.reward*reward_share/m.nslice);
   } else
     assert();
   let win_time = hps ? Math.floor(win_h/hps) : 0;
   let earn_hour = Math.floor(hps*60*60/win_h*reward);
-  return {win_h, win_time, earn_hour, reward, hps, target: m.target};
+  return {win_h, win_time, earn_hour, reward, hps, target};
 }
 
 function test(){
