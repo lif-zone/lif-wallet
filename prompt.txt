@@ -1370,3 +1370,8 @@ USER: Add a widget <Mine_pool_on>. It is similar to <Mine_on>, but just for pool
 
 CLAUDE: Extended useMining with independent pool_state/pool_handles/pool_toggle (separate from regular mining, can run in parallel). pool_toggle uses mine_instant_pool in a while loop. Refactored Mine_pool_screen to read from Mining_ctx (no own state). Added Mine_pool_on widget. Added Mine_pool_on to Wallet_card (onMinePool prop) and Wallet_screen header next to Mine_on. Wired onMinePool through Home_screen and BrightWallet.
 ---
+
+USER: in Mine_screen() move Start/Stop mining button above the radio buttons
+
+CLAUDE: Swapped order in Mine_screen JSX — button now renders before the radio button row.
+---

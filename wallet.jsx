@@ -1128,6 +1128,9 @@ function Mine_screen({wallet, start}){
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <h3>Mine for free</h3>
+      <button onClick={()=>toggle(wallet, mode)} style={{fontSize: 16, marginTop: 8}}>
+        {on ? '⏹ Stop mining' : '▶ Start mining'}
+      </button>
       <div style={{display: 'flex', gap: 16, marginTop: 10, fontSize: 14}}>
         {['instant', 'solo'].map(m=>(
           <label key={m} style={{display: 'flex', alignItems: 'center', gap: 6,
@@ -1139,9 +1142,6 @@ function Mine_screen({wallet, start}){
           </label>
         ))}
       </div>
-      <button onClick={()=>toggle(wallet, mode)} style={{fontSize: 16, marginTop: 8}}>
-        {on ? '⏹ Stop mining' : '▶ Start mining'}
-      </button>
       {lastStatus && (
         <div style={{marginTop: 8, fontSize: 13, color: '#c00'}}>
           Last status: {lastStatus}
