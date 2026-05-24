@@ -1133,11 +1133,16 @@ function Mine_screen({wallet, start}){
       </button>
       <div style={{display: 'flex', gap: 16, marginTop: 10, fontSize: 14}}>
         {['instant', 'solo'].map(m=>(
-          <label key={m} style={{display: 'flex', alignItems: 'center', gap: 6,
-            cursor: on ? 'default' : 'pointer', opacity: on ? 0.5 : 1}}>
+          <label key={m} style={{display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
             <input type="radio" name="mine_mode" value={m}
               checked={(on ? info?.mode : mode)==m}
-              onChange={()=>{ if (!on) setMode(m); }} disabled={on} />
+              onChange={()=>{
+                setMode(m);
+                if (on){
+                  toggle(wallet, mode);
+                  toggle(wallet, m);
+                }
+              }} />
             {m=='solo' ? 'Solo mining' : 'Instant mining'}
           </label>
         ))}

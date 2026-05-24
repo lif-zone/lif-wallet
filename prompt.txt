@@ -1380,3 +1380,8 @@ USER: in Mine_screen() instead of 'Shares mined' just put 'Mined', and in the va
 
 CLAUDE: Changed label to 'Mined'. Value now shows <Amount sat={stats.win_v||0}> followed by (N wins) count, always visible from 0.
 ---
+
+USER: in Mine_screen() allow clicking between instant<->solo in the middle of mining. In such a case, it will cancel the current mining, and start the other method.
+
+CLAUDE: Removed disabled/opacity from radio buttons. onChange now calls toggle twice when on — first to stop current session, then to start with the new mode.
+---
