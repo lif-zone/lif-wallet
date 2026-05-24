@@ -1150,16 +1150,10 @@ function Mine_screen({wallet, start}){
       <table style={{marginTop: 16, borderCollapse: 'collapse', fontSize: 14}}>
         <tbody>
           <tr>
-            <td style={{color: '#666', paddingRight: 16}}>
-              {mode_shares_blocks}{' '}mined
-            </td>
+            <td style={{color: '#666', paddingRight: 16}}>Mined</td>
             <td><strong>
-              {!stats.win_n ? '0' :
-                (<>
-                  {''+stats.win_n}{' '}{mode_shares_blocks},{' '}
-                  <Amount sat={stats.win_v} signed symbol={symbol}/>
-                </>)
-              }
+              <Amount sat={stats.win_v||0} signed symbol={symbol}/>
+              {' '}({stats.win_n||0} wins)
             </strong></td>
           </tr>
           <tr>

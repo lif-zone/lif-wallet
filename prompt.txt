@@ -1375,3 +1375,8 @@ USER: in Mine_screen() move Start/Stop mining button above the radio buttons
 
 CLAUDE: Swapped order in Mine_screen JSX — button now renders before the radio button row.
 ---
+
+USER: in Mine_screen() instead of 'Shares mined' just put 'Mined', and in the value put it in <Amount>. So it will start off as '$0.00 LIF (0 wins)'. the 0 is the number of wins (the number that appears today on that line)
+
+CLAUDE: Changed label to 'Mined'. Value now shows <Amount sat={stats.win_v||0}> followed by (N wins) count, always visible from 0.
+---
