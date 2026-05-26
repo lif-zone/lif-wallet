@@ -775,14 +775,16 @@ function tx_fund({wallet, p, in_sign=[], fee}){
   const {c, netconf, network} = wallet;
   const _sum_out = Number(
     p.txOutputs.reduce((sum, output)=>sum+output.value, 0n));
+  in_sign = [...in_sign];
   if (fee==null){ // estimate fee: mock tx
     let {mock} = netconf;
     p.addInput({hash: mock.tx_hash, index: 0,
       witnessUtxo: {value: BigInt(_sum_out+1),
       script: bitcoin.address.toOutputScript(mock.address, network)}});
-    let in_i = p.inputCount-1;
+    in_sign.push(mock);
     p.addOutput({address: mock.address, value: 1n});
-    p.signInput(in_i, mock.keyPair);
+    for(let i=0; i<in_sign.length; i++)
+      p.signInput(i, in_sign[i].keyPair);
     p.finalizeAllInputs();
     const tx = p.extractTransaction();
     return {tx, fee};
@@ -798,7 +800,6 @@ function tx_fund({wallet, p, in_sign=[], fee}){
   // and dust coins.
   const utxos = [...c.utxos].sort((a,b)=>b.value-a.value)
   .filter(u=>u.value>DUST_VAL);
-  in_sign = [...in_sign];
   const selected = [];
   if (sum_in>=sum_out)
     ; // no need funding
@@ -827,7 +828,7 @@ function tx_fund({wallet, p, in_sign=[], fee}){
     p.addInput({hash: u.tx_hash, index: u.tx_pos,
       witnessUtxo: {value: BigInt(u.value),
       script: bitcoin.address.toOutputScript(u.addrInfo.address, network)}});
-    in_sign.push(u);
+    in_sign.push(u.addrInfo);
   }
   if (sum_in<sum_out)
     return {err: "insufficient funds"};
@@ -836,7 +837,7 @@ function tx_fund({wallet, p, in_sign=[], fee}){
     p.addOutput({address: c.changeAddrInfo.address, value: BigInt(chg)});
   }
   for(let i=0; i<in_sign.length; i++)
-    p.signInput(i, in_sign[i].addrInfo.keyPair);
+    p.signInput(i, in_sign[i].keyPair);
   p.finalizeAllInputs();
   const tx = p.extractTransaction();
   return {utxos: in_sign, tx, pstb: p, fee, _fee: sum_in-sum_out};
@@ -895,7 +896,7 @@ export function kv_tx_send({wallet, kv_d, saddr_to, fee, in_calc}){
   p.addInput({hash: kv_d.tx, index: kv_d.vout,
     witnessUtxo: {value: BigInt(value),
       script: bitcoin.address.toOutputScript(saddr, network)}});
-  in_sign.push({addrInfo: addr});
+  in_sign.push(addr);
   p.addOutput({address: saddr_to, value: 1n});
   return tx_fund({wallet, p, in_sign, fee});
 }
@@ -916,7 +917,7 @@ export function kv_tx_edit({wallet, kv_d, fee, in_calc}){
   p.addInput({hash: kv_d.tx, index: kv_d.vout,
     witnessUtxo: {value: BigInt(value),
       script: bitcoin.address.toOutputScript(saddr, network)}});
-  in_sign.push({addrInfo: addr});
+  in_sign.push(addr);
   p.addOutput({script: kv_script(kv_d.key, kv_d.val), value: 0n});
   p.addOutput({address: c.changeAddrInfo.address, value: 1n});
   return tx_fund({wallet, p, in_sign, fee});

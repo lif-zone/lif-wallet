@@ -767,7 +767,9 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
         {settings.ls.devtools && transactions.some(tx=>!tx.timestamp) && (
           <button onClick={async()=>{
             try {
-              await fetch(lif_server_get()+'/mine', {method: 'POST'});
+              let res = await fetch(lif_server_get()+'/mine', {method: 'POST'});
+              if (!res.ok)
+                throw {message: res.statusText};
               setLoading(true);
               wallet_apply(await wallet_fetch(wallet, true));
             } catch(e){
@@ -2294,6 +2296,8 @@ function Devtools_screen({onCacheClear, onBack}){
     set_lifnode_res(null);
     try {
       const res = await fetch(url, {method: 'POST'});
+      if (!res.ok)
+        throw {message: res.statusText};
       set_lifnode_res(await res.json());
     } catch(e){
       set_lifnode_res({error: e.message});
