@@ -1400,3 +1400,8 @@ USER: in the middle of the mining progress bar, put the $12.34 LIF <Amount> widg
 
 CLAUDE: Added Amount overlay centered on the progress bar using absolute positioning. Uses stats.reward from the context update events. Only renders when stats.reward>0.
 ---
+
+USER: Can you take out the code of the mining widget, and put it in a separate component, so it will be more modular?
+
+CLAUDE: Extracted the progress bar + reward overlay + H/s line into a Mine_progress({on, stats, symbol}) component. Mine_screen now uses <Mine_progress on={on} stats={stats} symbol={symbol} />.
+---
