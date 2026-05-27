@@ -2246,8 +2246,7 @@ function Get_domain_screen({wallet, onSent, domain=''}){
 }
 
 // Settings Screen
-function Settings_screen({onDevtools, onBack})
-{
+function Settings_screen({onDevtools, onBack}){
   const modal = useModal();
   const {ls, netconf: netconfs} = settings;
   const [electrum, set_electrum] = useState(()=>{
