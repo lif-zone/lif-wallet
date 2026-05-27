@@ -1246,6 +1246,7 @@ function Mine_pool_screen({wallet}){
       <button onClick={toggle} style={{fontSize: 16, marginTop: 8}}>
         {on ? '⏹ Stop mining pool' : '▶ Start mining pool'}
       </button>
+      <Mine_progress on={on} stats={stats} symbol={symbol} />
       {lastStatus && (
         <div style={{marginTop: 8, fontSize: 13, color: '#c00'}}>
           Last status: {lastStatus}

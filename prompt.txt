@@ -1405,3 +1405,8 @@ USER: Can you take out the code of the mining widget, and put it in a separate c
 
 CLAUDE: Extracted the progress bar + reward overlay + H/s line into a Mine_progress({on, stats, symbol}) component. Mine_screen now uses <Mine_progress on={on} stats={stats} symbol={symbol} />.
 ---
+
+USER: Can you add also the widget to Mine_pool_screen?
+
+CLAUDE: Added <Mine_progress on={on} stats={stats} symbol={symbol} /> to Mine_pool_screen, between the Start/Stop button and the stats table.
+---
