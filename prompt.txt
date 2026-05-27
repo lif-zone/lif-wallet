@@ -1385,3 +1385,8 @@ USER: in Mine_screen() allow clicking between instant<->solo in the middle of mi
 
 CLAUDE: Removed disabled/opacity from radio buttons. onChange now calls toggle twice when on — first to stop current session, then to start with the new mode.
 ---
+
+USER: In Kv_edit_screen, add JSON validation.
+
+CLAUDE: Added JSON validation in Kv_info_screen's edit textarea (where the user actually types the value). Uses a try/catch JSON.parse inline. Shows red error message below textarea and red border if invalid. Save button disabled while JSON is invalid.
+---

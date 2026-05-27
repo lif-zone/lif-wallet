@@ -1325,19 +1325,28 @@ function Kv_info_screen({kv_d, onViewTx, onTransfer, onEdit}){
           <strong>Value:</strong>
           {!editing && !isSpent && <button onClick={startEdit} style={{fontSize: 12}}>Edit</button>}
         </div>
-        {editing ? (<>
-          <textarea
-            rows={5}
-            value={editVal}
-            onChange={e=>setEditVal(e.target.value)}
-            style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
-              fontSize: 13, boxSizing: 'border-box'}}
-          />
-          <div style={{display: 'flex', gap: 8, marginTop: 6}}>
-            <button onClick={()=>{ onEdit(editVal); setEditing(false); }}>Save</button>
-            <button onClick={()=>setEditing(false)}>Cancel</button>
-          </div>
-        </>) : (
+        {editing ? (()=>{
+          let jsonErr = null;
+          try { JSON.parse(editVal); } catch(e){ jsonErr = e.message; }
+          return (<>
+            <textarea
+              rows={5}
+              value={editVal}
+              onChange={e=>setEditVal(e.target.value)}
+              style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
+                fontSize: 13, boxSizing: 'border-box',
+                borderColor: jsonErr ? '#c00' : undefined}}
+            />
+            {jsonErr && (
+              <div style={{color: '#c00', fontSize: 12, marginTop: 2}}>{jsonErr}</div>
+            )}
+            <div style={{display: 'flex', gap: 8, marginTop: 6}}>
+              <button disabled={!!jsonErr}
+                onClick={()=>{ onEdit(editVal); setEditing(false); }}>Save</button>
+              <button onClick={()=>setEditing(false)}>Cancel</button>
+            </div>
+          </>);
+        })() : (
           <div style={{fontFamily: 'monospace', wordBreak: 'break-all', whiteSpace: 'pre-wrap', marginTop: 2}}>{json(kv_d.val)}</div>
         )}
       </div>
