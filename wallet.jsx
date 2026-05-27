@@ -1149,6 +1149,17 @@ function Mine_screen({wallet, start}){
           </label>
         ))}
       </div>
+      <div style={{marginTop: 12, border: '1px solid #aaa', borderRadius: 6, padding: 12}}>
+        <div style={{background: '#ddd', borderRadius: 4, height: 10, overflow: 'hidden'}}>
+          <div style={{background: '#4a4', height: '100%',
+            width: (on ? mine_percent(stats)*100 : 0)+'%', transition: 'width 0.5s'}} />
+        </div>
+        {on && (
+          <div style={{fontSize: 12, color: '#666', marginTop: 6}}>
+            Mining… {(stats.hps||0).toLocaleString()} H/s
+          </div>
+        )}
+      </div>
       {lastStatus && (
         <div style={{marginTop: 8, fontSize: 13, color: '#c00'}}>
           Last status: {lastStatus}

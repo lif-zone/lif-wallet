@@ -1390,3 +1390,8 @@ USER: In Kv_edit_screen, add JSON validation.
 
 CLAUDE: Added JSON validation in Kv_info_screen's edit textarea (where the user actually types the value). Uses a try/catch JSON.parse inline. Shows red error message below textarea and red border if invalid. Save button disabled while JSON is invalid.
 ---
+
+USER: in Mine_screen() add a mining widget bar (the same green widget added to show progress of mining in other screens). The widget of the progress bar should be below the "Start mining" and the two radio buttons, but before the statistics.
+
+CLAUDE: Added inline progress bar widget (same green bar style as Mine_fund) between radio buttons and stats table. Uses mine_percent(stats)*100 from context state. Shows H/s while mining, resets to 0 when stopped.
+---
