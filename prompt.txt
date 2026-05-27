@@ -1395,3 +1395,8 @@ USER: in Mine_screen() add a mining widget bar (the same green widget added to s
 
 CLAUDE: Added inline progress bar widget (same green bar style as Mine_fund) between radio buttons and stats table. Uses mine_percent(stats)*100 from context state. Shows H/s while mining, resets to 0 when stopped.
 ---
+
+USER: in the middle of the mining progress bar, put the $12.34 LIF <Amount> widget, with the reward that will be earned once mining will win. At the beginning, before there are any stats, it should not appear (not even $0.00 LIF). Only once there is a non-zero value for expected reward it should appear.
+
+CLAUDE: Added Amount overlay centered on the progress bar using absolute positioning. Uses stats.reward from the context update events. Only renders when stats.reward>0.
+---

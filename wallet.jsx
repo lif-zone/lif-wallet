@@ -1150,9 +1150,18 @@ function Mine_screen({wallet, start}){
         ))}
       </div>
       <div style={{marginTop: 12, border: '1px solid #aaa', borderRadius: 6, padding: 12}}>
-        <div style={{background: '#ddd', borderRadius: 4, height: 10, overflow: 'hidden'}}>
-          <div style={{background: '#4a4', height: '100%',
-            width: (on ? mine_percent(stats)*100 : 0)+'%', transition: 'width 0.5s'}} />
+        <div style={{position: 'relative'}}>
+          <div style={{background: '#ddd', borderRadius: 4, height: 10, overflow: 'hidden'}}>
+            <div style={{background: '#4a4', height: '100%',
+              width: (on ? mine_percent(stats)*100 : 0)+'%', transition: 'width 0.5s'}} />
+          </div>
+          {stats.reward>0 && (
+            <div style={{position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)', fontSize: 11, fontWeight: 'bold',
+              color: '#333', whiteSpace: 'nowrap', pointerEvents: 'none'}}>
+              <Amount sat={stats.reward} symbol={symbol} />
+            </div>
+          )}
         </div>
         {on && (
           <div style={{fontSize: 12, color: '#666', marginTop: 6}}>
