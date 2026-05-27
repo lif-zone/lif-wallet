@@ -1410,3 +1410,8 @@ USER: Can you add also the widget to Mine_pool_screen?
 
 CLAUDE: Added <Mine_progress on={on} stats={stats} symbol={symbol} /> to Mine_pool_screen, between the Start/Stop button and the stats table.
 ---
+
+USER: Why not to pass the mining context to the widget, and from some places it will be passed the global mining context, and from Mine_fund() it will be passed the local mining context?
+
+CLAUDE: Refactored Mine_progress to accept on/stats/symbol/successMsg props (already decoupled from context). Added successMsg prop for the 100% success state. Replaced Mine_fund's inline progress bar with <Mine_progress>, passing its local on/stats and a successMsg JSX node when successV is set.
+---

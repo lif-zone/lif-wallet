@@ -1064,23 +1064,12 @@ function Mine_fund({wallet, value, start, onEarned}){
   const effectiveBal = bal + winV;
   if (!successV && effectiveBal >= value)
     return null;
-  const progress = successV ? 100 : (on ? mine_percent(stats) * 100 : 0);
+  const successMsg = successV
+    ? <>Successfully mined <Amount sat={successV} symbol={symbol} signed />!</>
+    : null;
   return (
-    <div style={{marginTop: 16, border: '1px solid #aaa', borderRadius: 6, padding: 12}}>
-      <div style={{background: '#ddd', borderRadius: 4, height: 10, overflow: 'hidden'}}>
-        <div style={{background: '#4a4', height: '100%', width: progress+'%',
-          transition: 'width 0.5s'}} />
-      </div>
-      {successV
-        ? <div style={{fontSize: 13, color: '#4a4', marginTop: 6}}>
-            Successfully mined <Amount sat={successV} symbol={symbol} signed />!
-          </div>
-        : on && (
-          <div style={{fontSize: 12, color: '#666', marginTop: 6}}>
-            Mining… {(stats.hps||0).toLocaleString()} H/s
-          </div>
-        )
-      }
+    <div>
+      <Mine_progress on={on} stats={stats} symbol={symbol} successMsg={successMsg} />
       {!successV && (
         <div style={{marginTop: 8}}>
           {!on
@@ -1111,15 +1100,16 @@ function fmt_duration(sec){
   return h>0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
-function Mine_progress({on, stats, symbol}){
+function Mine_progress({on, stats, symbol, successMsg}){
+  const progress = successMsg ? 100 : (on ? mine_percent(stats)*100 : 0);
   return (
     <div style={{marginTop: 12, border: '1px solid #aaa', borderRadius: 6, padding: 12}}>
       <div style={{position: 'relative'}}>
         <div style={{background: '#ddd', borderRadius: 4, height: 10, overflow: 'hidden'}}>
           <div style={{background: '#4a4', height: '100%',
-            width: (on ? mine_percent(stats)*100 : 0)+'%', transition: 'width 0.5s'}} />
+            width: progress+'%', transition: 'width 0.5s'}} />
         </div>
-        {stats.reward>0 && (
+        {!successMsg && stats.reward>0 && (
           <div style={{position: 'absolute', top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)', fontSize: 11, fontWeight: 'bold',
             color: '#333', whiteSpace: 'nowrap', pointerEvents: 'none'}}>
@@ -1127,11 +1117,14 @@ function Mine_progress({on, stats, symbol}){
           </div>
         )}
       </div>
-      {on && (
-        <div style={{fontSize: 12, color: '#666', marginTop: 6}}>
-          Mining… {(stats.hps||0).toLocaleString()} H/s
-        </div>
-      )}
+      {successMsg
+        ? <div style={{fontSize: 13, color: '#4a4', marginTop: 6}}>{successMsg}</div>
+        : on && (
+          <div style={{fontSize: 12, color: '#666', marginTop: 6}}>
+            Mining… {(stats.hps||0).toLocaleString()} H/s
+          </div>
+        )
+      }
     </div>
   );
 }
