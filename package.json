@@ -11,7 +11,7 @@
     "wallet"
   ],
   "dependencies": {
-    "lif-kernel": "git+https://github.com/lif-zone/lif-kernel#main",
+    "lif-kernel": "github:lif-zone/lif-kernel#main",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "assert": "^1.5.1",
