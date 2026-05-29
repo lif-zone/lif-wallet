@@ -1,5 +1,5 @@
 // node env in browser
-import compat, {setImmediate, clearImmediate} from 'lif-kernel/compat.js';
+import compat, {setImmediate, clearImmediate} from 'lif-kernel/compat';
 globalThis.global = globalThis; // for bsock npm
 import buffer from 'buffer';
 globalThis.Buffer = buffer.Buffer;
