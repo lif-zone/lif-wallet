@@ -217,7 +217,7 @@ class electrum_rpc {
     try {
       await rpc.connect({url: this.url});
     } catch(e){
-      console.error('roc_connect', e);
+      console.error('rpc_connect', e);
       rpc.close();
       throw e; // return
     }
@@ -297,7 +297,7 @@ class lif_rg_rpc {
     try {
       await rpc.connect({url: this.url});
     } catch(e){
-      console.error('roc_connect', e);
+      console.error('rpc_connect', e);
       rpc.close();
       throw e; // return
     }
