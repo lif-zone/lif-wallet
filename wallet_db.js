@@ -278,70 +278,6 @@ export function _el(netconf){
   return new electrum_rpc(netconf);
 }
 
-const g_lif_rg = {};
-class lif_rg_rpc {
-  constructor(){
-    this.url = ws_origin()+'/.lif.rg';
-  }
-  async connect(){
-    let rpc;
-    if (rpc = g_lif_rg[this.url]){
-      if (!rpc.error)
-        return rpc;
-      rpc.close();
-    }
-    rpc = g_lif_rg[this.url] = new rpc_websocket({D: 1});
-    rpc.method('ping', ()=>({pong: 1}));
-    rpc.method('version',
-      ()=>({name: 'lif-coin-wallet', version: util_version}));
-    try {
-      await rpc.connect({url: this.url});
-    } catch(e){
-      console.error('rpc_connect', e);
-      rpc.close();
-      throw e; // return
-    }
-    try {
-      this.server_version = await rpc.T_call('version',
-        {name: 'lif-coin-wallet', version: util_version});
-    } catch(e){
-      console.error('server version rpc', e);
-      this.close();
-      throw e; // XXX return
-    }
-    return rpc;
-  }
-  async call(method, params){
-    let rpc = await this.connect();
-    return await rpc.T_call(method, params);
-  }
-  close(){
-    const rpc = g_lif_rg[this.url];
-    if (rpc)
-      rpc.close();
-    delete g_lif_rg[this.url];
-  }
-  async topic_get(topic){
-    return await this.call('topic_get', {topic});
-  }
-  async topic_pub(topic, data){
-    return await this.call('topic_pub', {topic, data});
-  }
-  async topic_unpub(topic){
-    return await this.call('topic_unpub', {topic});
-  }
-  async rcall(rg_id, method, params){
-    return await this.call('rcall', {rg_id, method, params});
-  }
-  async rg_id(rg_id){
-    return await this.call('rg_id', {rg_id});
-  }
-}
-
-export function rg_rpc(){
-  return new lif_rg_rpc();
-}
-
 // id → single wallet object instance (mutated in place)
 const g_wallets = {};
 
@@ -960,11 +896,11 @@ export function mine_solo({netconf, saddr, min, max, target, steps=true}){
 
 let g_rg = {};
 let g_rg_id = ''+Math.floor(Math.random()*1000000000);
-export function mine_instant({netconf, saddr, target}){
+export function mine_instant1({netconf, saddr, target}){
   return etask(function*mine_instant()
 {
   this.on('cancel', ()=>console.log('mine_instant canceled'));
-  const rg_c = rg_rpc();
+  const rg_c = lif_rg();
   let ret = yield rg_c.topic_get('mine_instant');
   if (!ret.length)
     return {err: 'no mining pools online'};
@@ -1057,13 +993,13 @@ function header_match(a, b){
 }
 
 let STALE_OFFER = 60; // 1 minute
-export function mine_instant_pool({wallet, reward_share, target}){
+export function mine_instant_pool1({wallet, reward_share, target}){
   return etask(function*mine_instant_pool()
 {
   this.on('cancel', ()=>console.log('mine_instant_pool canceled'));
   const {netconf} = wallet;
   const {pow} = netconf;
-  const rg_c = rg_rpc();
+  const rg_c = lif_rg();
   const rpc = yield rg_c.connect();
   const _this = this;
   let submit_err_n = 0, submit_err = '';
@@ -1223,27 +1159,149 @@ export function mine_instant_pool({wallet, reward_share, target}){
   }
 }); }
 
-class lif_rg_net extends lif_rg_rpc {
+const g_lif_rg = {};
+class Lif_rg {
+  constructor(){
+    this.url = ws_origin()+'/.lif.rg';
+  }
+  async connect(){
+    let rpc;
+    if (rpc = g_lif_rg[this.url]){
+      if (!rpc.error)
+        return rpc;
+      rpc.close();
+    }
+    rpc = g_lif_rg[this.url] = new rpc_websocket({D: 1});
+    rpc.method('ping', ()=>({pong: 1}));
+    rpc.method('version',
+      ()=>({name: 'lif-coin-wallet', version: util_version}));
+    try {
+      await rpc.connect({url: this.url});
+    } catch(e){
+      console.error('rpc_connect', e);
+      rpc.close();
+      throw e; // return
+    }
+    try {
+      this.server_version = await rpc.T_call('version',
+        {name: 'lif-coin-wallet', version: util_version});
+    } catch(e){
+      console.error('server version rpc', e);
+      this.close();
+      throw e; // XXX return
+    }
+    return rpc;
+  }
+  async call(method, params){
+    let rpc = await this.connect();
+    return await rpc.T_call(method, params);
+  }
+  close(){
+    const rpc = g_lif_rg[this.url];
+    if (rpc)
+      rpc.close();
+    delete g_lif_rg[this.url];
+  }
+  async topic_get(topic){
+    return await this.call('topic_get', {topic});
+  }
+  async topic_pub(topic, data){
+    return await this.call('topic_pub', {topic, data});
+  }
+  async topic_unpub(topic){
+    return await this.call('topic_unpub', {topic});
+  }
+  async rcall(rg_id, method, params){
+    return await this.call('rcall', {rg_id, method, params});
+  }
+  async rg_id(rg_id){
+    return await this.call('rg_id', {rg_id});
+  }
+}
+
+export function lif_rg(){
+  return new Lif_rg();
+}
+
+const g_lif_net = {};
+class Lif_net {
+  constructor(){
+    this.url = ws_origin()+'/.lif.rg';
+  }
   async net_connect(){
     return await super.connect();
   }
   connect(rg_id, method, params){
     let {seq, wait} = super.seq_open('connect', {rg_id, method, params});
+    seq.method('ping', ()=>({pong: 1}));
     return {seq, wait};
   }
   listen(method){
   }
+  async _connect(){
+    let rpc;
+    if (rpc = g_lif_net[this.url]){
+      if (!rpc.error)
+        return rpc;
+      rpc.close();
+    }
+    rpc = g_lif_net[this.url] = new rpc_websocket({D: 1});
+    rpc.method('ping', ()=>({pong: 1}));
+    rpc.method('version',
+      ()=>({name: 'lif-coin-wallet', version: util_version}));
+    try {
+      await rpc.connect({url: this.url});
+    } catch(e){
+      console.error('rpc_connect', e);
+      rpc.close();
+      throw e; // return
+    }
+    try {
+      this.server_version = await rpc.T_call('version',
+        {name: 'lif-coin-wallet', version: util_version});
+    } catch(e){
+      console.error('server version rpc', e);
+      this.close();
+      throw e; // XXX return
+    }
+    return rpc;
+  }
+  async call(method, params){
+    let rpc = await this._connect();
+    return await rpc.T_call(method, params);
+  }
+  close(){
+    const rpc = g_lif_net[this.url];
+    if (rpc)
+      rpc.close();
+    delete g_lif_net[this.url];
+  }
+  async topic_get(topic){
+    return await this.call('topic_get', {topic});
+  }
+  async topic_pub(topic, data){
+    return await this.call('topic_pub', {topic, data});
+  }
+  async topic_unpub(topic){
+    return await this.call('topic_unpub', {topic});
+  }
+  async rcall(rg_id, method, params){
+    return await this.call('rcall', {rg_id, method, params});
+  }
+  async rg_id(rg_id){
+    return await this.call('rg_id', {rg_id});
+  }
 }
 
-export function rg_net(){
-  return new lif_rg_net();
+export function lif_net(){
+  return new Lif_net();
 }
 
 export function mine_instant2({netconf, saddr, target}){
   return etask(function*mine_instant()
 {
   this.on('cancel', ()=>console.log('mine_instant canceled'));
-  const net = rg_net();
+  const net = lif_net();
   yield net.net_connect();
   let ret = yield net.topic_get('mine_instant');
   if (!ret.length)
@@ -1340,7 +1398,7 @@ export function mine_instant_pool2({wallet, reward_share, target}){
   this.on('cancel', ()=>console.log('mine_instant_pool canceled'));
   const {netconf} = wallet;
   const {pow} = netconf;
-  const net = rg_net();
+  const net = lif_net();
   yield net.net_connect();
   const _this = this;
   let submit_err_n = 0, submit_err = '';
@@ -1500,4 +1558,8 @@ export function mine_instant_pool2({wallet, reward_share, target}){
     yield net.topic_unpub('mine_instant');
   }
 }); }
+
+export const lif_net_enable = 0;
+export const mine_instant = lif_net_enable ? mine_instant2 : mine_instant1;
+export const mine_instant_pool = lif_net_enable ? mine_instant_pool2 : mine_instant_pool1;
 
