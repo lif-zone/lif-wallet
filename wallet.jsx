@@ -132,46 +132,61 @@ function useMining(){
       h.et?.return();
       clearInterval(h.intervalId);
       delete pool_handles.current[id];
-      setPoolState(s=>({...s, [id]: {...s[id], on: false}}));
+      setPoolState(s=>{
+        OA(s[id], {on: false, status: null});
+        return {...s};
+      });
       return;
     }
     const runningRef = {current: true};
     const blockStart = Date.now();
     const intervalId = setInterval(()=>{
-      setPoolState(s=>s[id]?.on
-        ? {...s, [id]: {...s[id], elapsed: Math.floor((Date.now()-blockStart)/1000)}}
-        : s);
+      setPoolState(s=>{
+        if (!s[id]?.on)
+          return s;
+        s[id].elapsed = Math.floor((Date.now()-blockStart)/1000);
+        return {...s};
+      });
     }, 1000);
     pool_handles.current[id] = {runningRef, blockStart, intervalId};
     const reward_share = 0.5;
     let cur_stats = {};
-    setPoolState(s=>({...s, [id]: {on: true, stats: cur_stats, elapsed: 0, lastStatus: null}}));
+    setPoolState(s=>{
+      OA(s[id], {on: true, stats: cur_stats, elapsed: 0, status: null});
+      return {...s};
+    });
     const target = target_get();
     const et = etask(function*(){
       while (runningRef.current){
+        const mine_et = mine_instant_pool({wallet, reward_share, target});
+        mine_et.on('status', status=>{
+          setPoolState(s=>{
+            s[id].err = status.err;
+            s[id].status = status.status;
+            return {...s};
+          });
+        });
+        mine_et.on('update', up=>{
+          let st = {...cur_stats, ...up, ...mine_stats_calc(up)};
+          st.earn_hour = Math.floor((st.earn_hour||0)*(1-reward_share));
+          cur_stats = st;
+          setPoolState(s=>{ s[id].stats = {...cur_stats}; return {...s}; });
+        });
+        mine_et.on('pay', pay=>{ console.log('payout', pay); });
+        mine_et.on('win', win=>{
+          console.log('win', win);
+          if (win.height)
+            cur_stats = {...cur_stats, win_n: (cur_stats.win_n||0)+1};
+          setPoolState(s=>{ s[id].stats = {...cur_stats}; return {...s}; });
+        });
         try {
-          const block_et = mine_instant_pool({wallet, reward_share, target});
-          block_et.on('update', up=>{
-            let st = {...cur_stats, ...up, ...mine_stats_calc(up)};
-            st.earn_hour = Math.floor((st.earn_hour||0)*(1-reward_share));
-            cur_stats = st;
-            setPoolState(s=>({...s, [id]: {...s[id], stats: {...cur_stats}}}));
-          });
-          block_et.on('pay', pay=>{ console.log('payout', pay); });
-          block_et.on('win', win=>{
-            console.log('win', win);
-            if (win.height)
-              cur_stats = {...cur_stats, win_n: (cur_stats.win_n||0)+1};
-            setPoolState(s=>({...s, [id]: {...s[id], stats: {...cur_stats}}}));
-          });
-          const ret = yield block_et;
-          setPoolState(s=>({...s, [id]: {...s[id], stats: {...cur_stats}, lastStatus: ret?.err||null}}));
+          yield mine_et;
         } catch(err){ CEA(err); }
         yield esleep(1000);
       }
       clearInterval(pool_handles.current[id]?.intervalId);
       delete pool_handles.current[id];
-      setPoolState(s=>({...s, [id]: {...s[id], on: false}}));
+      setPoolState(s=>{ s[id].on = false; return {...s}; });
     });
     pool_handles.current[id].et = et;
   };
@@ -183,57 +198,79 @@ function useMining(){
       h.et?.return();
       clearInterval(h.intervalId);
       delete handles.current[id];
-      setState(s=>({...s, [id]: {...s[id], on: false}}));
+      setState(s=>{
+        OA(s[id], {on: false, status: null});
+        return {...s};
+      });
       return;
     }
     const runningRef = {current: true};
     const blockStart = Date.now();
     const intervalId = setInterval(()=>{
-      setState(s=>s[id]?.on
-        ? {...s, [id]: {...s[id], elapsed: Math.floor((Date.now()-blockStart)/1000)}}
-        : s);
+      setState(s=>{
+        if (!s[id]?.on)
+          return s;
+        s[id].elapsed = Math.floor((Date.now()-blockStart)/1000);
+        return {...s};
+      });
     }, 1000);
     handles.current[id] = {runningRef, blockStart, intervalId};
     let cur_stats = {win_n: 0, win_v: 0};
-    setState(s=>({...s, [id]: {on: true, mode, stats: cur_stats, elapsed: 0, lastStatus: null}}));
+    setState(s=>{
+      s[id] = {on: true, mode, stats: cur_stats, elapsed: 0};
+      return {...s};
+    });
     const {netconf} = wallet;
     const saddr = wallet.c.receiveAddress;
     const target = target_get();
     const et = etask(function*(){
       while (runningRef.current){
-        try {
-          let block_et;
-          if (mode=='instant')
-            block_et = mine_instant({netconf, saddr, target});
-          else
-            block_et = mine_solo({netconf, saddr, target});
-          block_et.on('update', up=>{
-            cur_stats = {...cur_stats, ...up, ...mine_stats_calc(up)};
-            setState(s=>({...s, [id]: {...s[id], stats: {...cur_stats}}}));
+        let mine_et;
+        if (mode=='instant')
+          mine_et = mine_instant({netconf, saddr, target});
+        else
+          mine_et = mine_solo({netconf, saddr, target});
+        mine_et.on('status', status=>{
+          setState(s=>{
+            s[id].err = status.err;
+            s[id].status = status.status;
+            return {...s};
           });
-          const ret = yield block_et;
-          if (mode=='instant'){
-            if (ret.tx){ cur_stats.win_n++; cur_stats.win_v += ret.reward_net; }
-          } else {
-            if (ret?.height){ cur_stats.win_n++; cur_stats.win_v += ret.reward; }
-          }
-          setState(s=>({...s, [id]: {...s[id], stats: {...cur_stats}, lastStatus: ret.err||null}}));
-        } catch(err){ CEA(err); }
+        });
+        mine_et.on('update', up=>{
+          cur_stats = {...cur_stats, ...up, ...mine_stats_calc(up)};
+          setState(s=>{ s[id].stats = {...cur_stats}; return {...s}; });
+        });
+        let ret;
+        try {
+          ret = yield mine_et;
+        } catch(err){ CEA(err);
+          ret = {err: ''+err};
+        }
+        if (mode=='instant' && ret.tx){
+          cur_stats.win_n++;
+          cur_stats.win_v += ret.reward_net;
+        }
+        if (mode=='solo' && ret?.height){
+          cur_stats.win_n++;
+          cur_stats.win_v += ret.reward;
+        }
+        setState(s=>{ s[id].stats = {...cur_stats}; return {...s}; });
         yield esleep(1000);
       }
       clearInterval(handles.current[id]?.intervalId);
       delete handles.current[id];
-      setState(s=>({...s, [id]: {...s[id], on: false}}));
+      setState(s=>{ s[id].on = false; return {...s}; });
     });
     handles.current[id].et = et;
   };
   useEffect(()=>()=>{
-    for (const h of Object.values(handles.current)){
+    for (const h of OV(handles.current)){
       h.runningRef.current = false;
       h.et?.return();
       clearInterval(h.intervalId);
     }
-    for (const h of Object.values(pool_handles.current)){
+    for (const h of OV(pool_handles.current)){
       h.runningRef.current = false;
       h.et?.return();
       clearInterval(h.intervalId);
@@ -1134,17 +1171,18 @@ function Mine_screen({wallet, start}){
   const {symbol} = netconf;
   const {state, toggle} = useContext(Mining_ctx);
   const id = wallet.ls.id;
-  const info = state[id];
-  const on = !!info?.on;
-  const stats = info?.stats || {};
-  const elapsed = info?.elapsed || 0;
-  const lastStatus = info?.lastStatus || null;
-  const [mode, setMode] = useState(info?.mode || 'instant');
+  const info = state[id] ||= {};
+  const on = info.on ||= false;
+  const stats = info.stats ||= {};
+  const elapsed = info.elapsed ||= 0;
+  const last_err = info.err ||= null;
+  const status = info.status ||= null;
+  const [mode, setMode] = useState(info.mode || 'instant');
   useEffect(()=>{
     if (start && !on)
       toggle(wallet, mode);
   }, []);
-  const mode_shares_blocks = (info?.mode||mode)=='instant' ? 'Shares' : 'Blocks';
+  const mode_shares_blocks = (info.mode||mode)=='instant' ? 'Shares' : 'Blocks';
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <h3>Mine for free</h3>
@@ -1155,7 +1193,7 @@ function Mine_screen({wallet, start}){
         {['instant', 'solo'].map(m=>(
           <label key={m} style={{display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
             <input type="radio" name="mine_mode" value={m}
-              checked={(on ? info?.mode : mode)==m}
+              checked={(on ? info.mode : mode)==m}
               onChange={()=>{
                 setMode(m);
                 if (on){
@@ -1168,9 +1206,14 @@ function Mine_screen({wallet, start}){
         ))}
       </div>
       <Mine_progress on={on} stats={stats} symbol={symbol} />
-      {lastStatus && (
+      {on && status && !stats.mining && (
+        <div style={{marginTop: 8, fontSize: 13, color: '#888'}}>
+          Status: {status}
+        </div>
+      )}
+      {last_err && (
         <div style={{marginTop: 8, fontSize: 13, color: '#c00'}}>
-          Last status: {lastStatus}
+          Last status: {last_err}
         </div>
       )}
       <table style={{marginTop: 16, borderCollapse: 'collapse', fontSize: 14}}>
@@ -1227,11 +1270,12 @@ function Mine_pool_screen({wallet}){
   const {symbol} = netconf;
   const {pool_state, pool_toggle} = useContext(Mining_ctx);
   const id = wallet.ls.id;
-  const info = pool_state[id];
-  const on = info?.on || false;
-  const stats = info?.stats || {};
-  const elapsed = info?.elapsed || 0;
-  const lastStatus = info?.lastStatus || null;
+  const info = pool_state[id] ||= {};
+  const on = info.on ||= false;
+  const stats = info.stats ||= {};
+  const elapsed = info.elapsed ||= 0;
+  const last_err = info.err ||= null;
+  const status = info.status ||= null;
   const toggle = ()=>pool_toggle(wallet);
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
@@ -1240,9 +1284,14 @@ function Mine_pool_screen({wallet}){
         {on ? '⏹ Stop mining pool' : '▶ Start mining pool'}
       </button>
       <Mine_progress on={on} stats={stats} symbol={symbol} />
-      {lastStatus && (
+      {on && status && !stats.mining && (
+        <div style={{marginTop: 8, fontSize: 13, color: '#888'}}>
+          Status: {status}
+        </div>
+      )}
+      {last_err && (
         <div style={{marginTop: 8, fontSize: 13, color: '#c00'}}>
-          Last status: {lastStatus}
+          Last status: {last_err}
         </div>
       )}
       <table style={{marginTop: 16, borderCollapse: 'collapse', fontSize: 14}}>

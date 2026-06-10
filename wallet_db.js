@@ -901,9 +901,21 @@ export function mine_instant1({netconf, saddr, target}){
 {
   this.on('cancel', ()=>console.log('mine_instant canceled'));
   const rg_c = lif_rg();
+  const _err = err=>{
+    err = ''+err;
+    this.emit('status', {err});
+    return {err};
+  };
+  const _err_cheat = err=>{
+    rg.cheat++;
+    return _err(err);
+  };
+  const _status = status=>this.emit('status', {status});
+  _status('searching for pool servers');
   let ret = yield rg_c.topic_get('mine_instant');
   if (!ret.length)
-    return {err: 'no mining pools online'};
+    return _err('no mining pools online');
+  _status('connecting to pool server');
   let rg_id;
   for (let id of ret){
     if (g_rg[id]?.cheat)
@@ -914,20 +926,21 @@ export function mine_instant1({netconf, saddr, target}){
     rg_id = id;
   }
   if (!rg_id)
-    return {err: 'no good mining pools online'};
+    return _err('no good mining pools online');
   let rg = g_rg[rg_id] ||= {template: 0, mined: 0, cheat: 0, success: 0};
+  _status('getting block template');
   let template = yield rg_c.rcall(rg_id, 'mine_instant_get_template',
     {addr: saddr});
   if (template.error)
-    return {err: 'pool: mine_instant_get_template '+template.error};
+    return _err('pool: mine_instant_get_template '+template.error);
   if (!template.header)
-    return {err: 'pool: no mine_instant_get_template'};
+    return _err('pool: no mine_instant_get_template');
   let {reward, fee} = template;
   if (!reward || !fee)
-    return {err: 'pool: no reward/fee'};
+    return _err('pool: no reward/fee');
   let reward_net = reward-fee;
   if (reward_net<0)
-    return {err: 'pool: reward lees than fee'};
+    return _err('pool: reward less than fee');
   rg.template++;
   const header = buf_from_hex(template.header);
   let pay_target;
@@ -940,7 +953,7 @@ export function mine_instant1({netconf, saddr, target}){
   let opt = {pow: netconf.pow, header, target: pay_target};
   let mine_et = mine_steps(opt);
   mine_et.on('update', up=>{
-    this.emit('update', {...up, reward: reward_net});
+    this.emit('update', {...up, status: 'mining', mining: true, reward: reward_net});
     rg_c.rcall(rg_id, 'mine_instant_update', {mine_h: up.mine_h});
   });
   let mine_ret = yield mine_et;
@@ -949,23 +962,18 @@ export function mine_instant1({netconf, saddr, target}){
     return mine_ret;
   rg.mined++;
   console.log('submitting new block');
+  _status('submitting winning block');
   mine_ret.header = buf_to_hex(mine_ret.header);
   let tx_ret = yield rg_c.rcall(rg_id, 'mine_instant_submit', {header: mine_ret.header, addr: saddr});
   let tx = tx_ret?.tx;
-  if (!tx){
-    rg.cheat++;
-    return {err: 'failed submitting winning share', ...(tx_ret||{}), cheat: 1};
-  }
+  if (!tx)
+    return _err_cheat('failed submitting winning share');
   let _tx = _try(()=>bitcoin.Transaction.fromHex(tx));
-  if (!_tx){
-    rg.cheat++;
-    return {err: 'pool cheat: invalid tx', cheat: 1};
-  }
+  if (!_tx)
+    return _err_cheat('pool cheat: invalid tx');
   let out = tx_out_find(netconf.network, _tx, saddr);
-  if (!out){
-    rg.cheat++;
-    return {err: 'pool cheat: didnt pay out to addr', cheat: 1};
-  }
+  if (!out)
+    return _err_cheat('pool cheat: didnt pay out to addr');
   let warn = {};
   reward_net = Number(out.value);
   if (reward_net<reward-fee){
@@ -974,12 +982,11 @@ export function mine_instant1({netconf, saddr, target}){
       +(reward-fee)+' promised (fee ', cheat: 1};
   }
   let txid = yield tx_broadcast(netconf, _tx);
-  if (!txid){
-    rg.cheat++;
-    return {err: 'pool cheat: TX reward not accepted by mempool', cheat: 1};
-  }
+  if (!txid)
+    return _err_cheat('pool cheat: TX reward not accepted by mempool');
   rg.success++;
   console.log('success! new TX '+txid);
+  _status('success');
   return {txid, tx, _tx, reward_net, reward, fee, ...warn};
 }); };
 
@@ -1000,8 +1007,15 @@ export function mine_instant_pool1({wallet, reward_share, target}){
   const {netconf} = wallet;
   const {pow} = netconf;
   const rg_c = lif_rg();
-  const rpc = yield rg_c.connect();
   const _this = this;
+  const _err = err=>{
+    err = ''+err;
+    this.emit('status', {err});
+    return {err};
+  };
+  const _status = status=>this.emit('status', {status});
+  _status('connecting');
+  const rpc = yield rg_c.connect();
   let submit_err_n = 0, submit_err = '';
   let win_n = 0, pay_n = 0, win_v = 0, pay_v = 0;
   const offers = {};
@@ -1012,6 +1026,7 @@ export function mine_instant_pool1({wallet, reward_share, target}){
     const el = _el(netconf);
     yield rg_c.rg_id(g_rg_id);
     const saddr = wallet.c.receiveAddress;
+    _status('getting block template');
     const template = yield el.mine_get_template(saddr);
     const {reward} = template;
     const reward_net = Math.floor(reward*(1-reward_share));
@@ -1029,14 +1044,14 @@ export function mine_instant_pool1({wallet, reward_share, target}){
     let nwin = 0;
     let last_up = {now: Date.now(), total_h: 0};
     if (pay_reward<=fee)
-      return {err: 'reward smaller than fees'};
+      return _err('reward smaller than fees');
     let do_update = ()=>{
       let now = Date.now();
       let hps = Math.floor((total_h-last_up.total_h)/
         Math.max(now-last_up.now, 1)*1000);
-      this.emit('update', {hps, total_h, target, reward, reward_net,
+      _this.emit('update', {hps, total_h, target, reward, reward_net,
         pay_target, pay_reward, pay_h, win_h, submit_err_n, submit_err,
-        win_n, pay_n, win_v, pay_v});
+        win_n, pay_n, win_v, pay_v, status: 'pool active', mining: true});
       last_up = {now, total_h};
     };
     console.log('starting mining pool', template.header);
@@ -1045,7 +1060,7 @@ export function mine_instant_pool1({wallet, reward_share, target}){
     rpc.method('mine_instant_get_template', params=>{
       let {addr} = params;
       if (!addr)
-        return {err: 'no reward addr'};
+        return _err('no reward addr');
       let offer;
       let i;
       for (let _i=0; _i<nslice; _i++){
@@ -1059,7 +1074,7 @@ export function mine_instant_pool1({wallet, reward_share, target}){
         break;
       }
       if (i==undefined)
-        return {err: 'all offer slots full'};
+        return _err('all offer slots full');
       let now = date_time();
       let h = Buffer.from(header);
       let time_now = now-time_diff;
@@ -1077,7 +1092,7 @@ export function mine_instant_pool1({wallet, reward_share, target}){
       let {addr, header: h, mine_h} = params;
       total_h += mine_h||0;
       if (!addr)
-        return {err: 'no reward addr'};
+        return _err('no reward addr');
       let _h = buf_from_hex(h);
       let nonce = header_get_nonce(_h);
       let time = header_get_time(_h);
@@ -1098,36 +1113,36 @@ export function mine_instant_pool1({wallet, reward_share, target}){
       ret = mine({pow, header: _h, min: nonce, max: nonce+1,
         target: pay_target});
       if (!ret)
-        return {err: 'pool cheat: not in target'};
+        return _err('pool cheat: not in target');
       // locate offer, validate it matches nonce range and time range
       let i = Math.floor(nonce/slice_sz);
       let offer = offers[i];
       if (!offer)
-        return {err: 'no offer for nonce range'};
+        return _err('no offer for nonce range');
       let win = offer.win.find(w=>w.time==time && w.nonce==nonce);
       if (win)
-        return {err: 'offer was already presented'};
+        return _err('offer was already presented');
       win = {time, nonce, time_local: date_time(), header: h};
       if (!header_match(_h, header))
-        return {err: 'header fields do not match offer'};
+        return _err('header fields do not match offer');
       let time_now = win.time_local-time_diff;
       if (time<time_base)
-        return {err: 'header time too earlier than offer'};
+        return _err('header time too earlier than offer');
       if (time>time_now+1)
-        return {err: 'header time in the future'};
+        return _err('header time in the future');
       console.log('valid offer - do share payout!');
       offer.win.push(win);
       nwin++;
       let tx = tx_send({wallet, saddr_to: addr, value: pay_reward-fee, fee});
       if (tx.err)
-        return {err: 'failed payout to valid offer! serious bug!'};
+        return _err('failed payout to valid offer! serious bug!');
       pay_n++;
       pay_v += pay_reward;
       _this.emit('pay', tx);
       do_update();
       ret = yield tx_broadcast(netconf, tx.tx);
       if (!ret)
-        return {err: 'failed broadcast TX of payout to valid offer!'};
+        return _err('failed broadcast TX of payout to valid offer!');
       return {result: {tx: tx.tx.toHex(), txid: tx.tx.getId(),
         reward: pay_reward-fee, fee, addr: addr}};
     }); }
@@ -1151,7 +1166,7 @@ export function mine_instant_pool1({wallet, reward_share, target}){
       do_update();
     }
   } catch(err){ CEA(err);
-    return {err: ''+err};
+    return _err(err);
   } finally {
     rpc.method('mine_instant_get_template');
     rpc.method('mine_instant_submit');
