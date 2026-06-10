@@ -7,8 +7,8 @@ const bip32 = BIP32Factory(ecc);
 import {ECPairFactory} from 'ecpair';
 const ecpair = ECPairFactory(ecc);
 import {openDB} from 'idb';
-import {T, OE, OV, OA, CE, CEA, ewait, esleep, assert, rpc_websocket, _try,
-  version as util_version, date_time,
+import {T, OE, OV, OA, CE, CEA, ewait, esleep, assert, rpc_websocket, rpc_sock,
+  _try, version as util_version, date_time,
 } from 'lif-kernel/util.js';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
@@ -1131,7 +1131,7 @@ export function mine_instant_pool1({wallet, reward_share, target}){
       return {result: {tx: tx.tx.toHex(), txid: tx.tx.getId(),
         reward: pay_reward-fee, fee, addr: addr}};
     }); }
-    rpc._method('mine_instant_submit', async params=>{
+    rpc.method('mine_instant_submit', async(params)=>{
       let ret = await mine_instant_submit(params);
       if (ret.error){
         console.error(ret.error);
@@ -1223,58 +1223,60 @@ export function lif_rg(){
   return new Lif_rg();
 }
 
-const g_lif_net = {};
 class Lif_net {
+  rpc;
+  url;
+  _wait_open;
   constructor(){
     this.url = ws_origin()+'/.lif.rg';
+    this.rpc = new rpc_websocket({D: 1});
+    this.set_events();
+    this.rpc.on('close', ()=>this.is_closed = true);
   }
-  async net_connect(){
-    return await super.connect();
+  set_events(){
+    this.rpc.method('ping', ()=>({pong: 1}));
+    this.rpc.method('version',
+      ()=>({name: 'lif-coin-wallet', version: util_version}));
   }
   connect(rg_id, method, params){
-    let {seq, wait} = super.seq_open('connect', {rg_id, method, params});
-    seq.method('ping', ()=>({pong: 1}));
-    return {seq, wait};
-  }
-  listen(method){
+    let sock = new rpc_sock();
+    this.set_events(sock);
+    let wait = (async()=>{
+      await sock.connect(this.rpc, 'rconnect', {method, params});
+      let ret = await sock.call('ping');
+      console.log('ping result', ret);
+      if (!ret.pong)
+        return {error: 'no pong'};
+    })();
+    return {sock, wait};
   }
   async _connect(){
-    let rpc;
-    if (rpc = g_lif_net[this.url]){
-      if (!rpc.error)
-        return rpc;
-      rpc.close();
-    }
-    rpc = g_lif_net[this.url] = new rpc_websocket({D: 1});
-    rpc.method('ping', ()=>({pong: 1}));
-    rpc.method('version',
-      ()=>({name: 'lif-coin-wallet', version: util_version}));
+    if (this._wait_open)
+      return await this._wait_open;
+    this._wait_open = ewait();
     try {
-      await rpc.connect({url: this.url});
+      await this.rpc.connect({url: this.url});
     } catch(e){
       console.error('rpc_connect', e);
-      rpc.close();
+      this.rpc.close();
       throw e; // return
     }
     try {
-      this.server_version = await rpc.T_call('version',
+      this.server_version = await this.rpc.T_call('version',
         {name: 'lif-coin-wallet', version: util_version});
     } catch(e){
       console.error('server version rpc', e);
       this.close();
       throw e; // XXX return
     }
-    return rpc;
+    return this._wait_open.return(this.rpc);
   }
   async call(method, params){
-    let rpc = await this._connect();
-    return await rpc.T_call(method, params);
+    return await this.rpc.T_call(method, params);
   }
   close(){
-    const rpc = g_lif_net[this.url];
-    if (rpc)
-      rpc.close();
-    delete g_lif_net[this.url];
+    this._wait_open.throw('close');
+    this.rpc.close();
   }
   async topic_get(topic){
     return await this.call('topic_get', {topic});
@@ -1302,7 +1304,7 @@ export function mine_instant2({netconf, saddr, target}){
 {
   this.on('cancel', ()=>console.log('mine_instant canceled'));
   const net = lif_net();
-  yield net.net_connect();
+  yield net._connect();
   let ret = yield net.topic_get('mine_instant');
   if (!ret.length)
     return {err: 'no mining pools online'};
@@ -1311,7 +1313,7 @@ export function mine_instant2({netconf, saddr, target}){
     let _sock;
     if (g_rg[id]?.cheat)
       continue;
-    let {_sock: seq, wait} = net.connect(id, 'mine_instant');
+    let {_sock: sock, wait} = net.connect(id, 'mine_instant');
     ret = yield wait;
     if (ret.error)
       console.log('failed connecting to '+id);
@@ -1324,8 +1326,7 @@ export function mine_instant2({netconf, saddr, target}){
   if (!rg_id)
     return {err: 'no good mining pools online'};
   let rg = g_rg[rg_id] ||= {template: 0, mined: 0, cheat: 0, success: 0};
-  let template = yield sock.call(rg_id, 'mine_instant_get_template',
-    {addr: saddr});
+  let template = yield sock.call('mine_instant_get_template', {addr: saddr});
   if (template.error)
     return {err: 'pool: mine_instant_get_template '+template.error};
   if (!template.header)
@@ -1349,7 +1350,7 @@ export function mine_instant2({netconf, saddr, target}){
   let mine_et = mine_steps(opt);
   mine_et.on('update', up=>{
     this.emit('update', {...up, reward: reward_net});
-    net.call(rg_id, 'mine_instant_update', {mine_h: up.mine_h});
+    sock.call('mine_instant_update', {mine_h: up.mine_h});
   });
   let mine_ret = yield mine_et;
   console.log('mine_res', mine_ret);
@@ -1358,7 +1359,7 @@ export function mine_instant2({netconf, saddr, target}){
   rg.mined++;
   console.log('submitting new block');
   mine_ret.header = buf_to_hex(mine_ret.header);
-  let tx_ret = yield net.call(rg_id, 'mine_instant_submit',
+  let tx_ret = yield sock.call('mine_instant_submit',
     {header: mine_ret.header, addr: saddr});
   let tx = tx_ret?.tx;
   if (!tx){
@@ -1399,7 +1400,7 @@ export function mine_instant_pool2({wallet, reward_share, target}){
   const {netconf} = wallet;
   const {pow} = netconf;
   const net = lif_net();
-  yield net.net_connect();
+  yield net._connect();
   const _this = this;
   let submit_err_n = 0, submit_err = '';
   let win_n = 0, pay_n = 0, win_v = 0, pay_v = 0;
@@ -1440,9 +1441,8 @@ export function mine_instant_pool2({wallet, reward_share, target}){
     };
     console.log('starting mining pool', template.header);
     do_update();
-    let listen = net.listen('mine_instant');
-    listen.on('connect', ({src, sock})=>{
-      console.log('client connected', src);
+    rpc_sock.listen(net, 'mine_instant', ({msg, sock})=>{
+      console.log('client connected', msg);
       // do here the pool mining
       sock.method('mine_instant_get_template', ({addr})=>{
         if (!addr)
@@ -1474,7 +1474,7 @@ export function mine_instant_pool2({wallet, reward_share, target}){
       sock.method('mine_instant_update', up=>{
         total_h += up.mine_h||0;
       });
-      sock._method('mine_instant_submit', async params=>{
+      sock.method('mine_instant_submit', async params=>{
         let ret = await mine_instant_submit(params);
         if (ret.error){
           console.error(ret.error);
@@ -1546,7 +1546,7 @@ export function mine_instant_pool2({wallet, reward_share, target}){
       return {result: {tx: tx.tx.toHex(), txid: tx.tx.getId(),
         reward: pay_reward-fee, fee, addr: addr}};
     }); }
-    let ret = yield net.pub('mine_instant',
+    let ret = yield net.topic_pub('mine_instant',
       {reward: pay_reward, fee, target});
     while (1){
       yield esleep(1000);
@@ -1556,6 +1556,7 @@ export function mine_instant_pool2({wallet, reward_share, target}){
     return {err: ''+err};
   } finally {
     yield net.topic_unpub('mine_instant');
+    net.close();
   }
 }); }
 
