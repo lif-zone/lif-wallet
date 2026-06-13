@@ -7,7 +7,7 @@ const bip32 = BIP32Factory(ecc);
 import {ECPairFactory} from 'ecpair';
 const ecpair = ECPairFactory(ecc);
 import {openDB} from 'idb';
-import {T, OE, OV, OA, CE, CEA, ewait, esleep, assert, rpc_websocket, rpc_sock,
+import {T, OE, OV, OA, CE, CEL, ewait, esleep, assert, rpc_websocket, rpc_sock,
   _try, version as util_version, date_time,
 } from 'lif-kernel/util.js';
 let lif = globalThis.$lif ||= {};
@@ -1169,7 +1169,7 @@ export function mine_instant_pool1({wallet, reward_share, target}){
       yield esleep(1000);
       do_update();
     }
-  } catch(err){ CEA(err);
+  } catch(err){ CEL(err);
     return _err(err);
   } finally {
     rpc.method('mine_instant_get_template');
@@ -1261,11 +1261,18 @@ class Lif_net {
     let sock = new rpc_sock();
     this.set_events(sock);
     let wait = (async()=>{
-      await sock.connect(this.rpc, 'rconnect', {rg_id, method, params});
-      let ret = await sock.call('ping');
-      console.log('ping result', ret);
-      if (!ret.pong)
+      let ret = await sock.connect(this.rpc, 'rconnect',
+        {rg_id, method, params});
+      if (ret.error){
+        console.warn('failed connect', ret);
+        return ret;
+      }
+      let ping = await sock._call('ping');
+      if (ping.error || !ping.result.pong){
+        console.warn('failed ping', ping);
         return {error: 'no pong'};
+      }
+      return ret;
     })();
     return {sock, wait};
   }
@@ -1350,16 +1357,14 @@ export function mine_instant2({netconf, saddr, target}){
   _status('connecting to pool server');
   let rg_id, sock;
   for (let id of addr){
-    let _sock;
     if (g_rg[id]?.cheat)
       continue;
-    let {_sock: sock, wait} = net.connect(id, 'mine_instant');
+    let {sock: _sock, wait} = net.connect(id, 'mine_instant');
     ret = yield wait;
-    if (ret.error)
+    if (ret.error){
       console.log('failed connecting to '+id);
-    ret = yield _sock.call(id, 'ping');
-    if (!ret.pong)
       continue;
+    }
     sock = _sock;
     rg_id = id;
   }
@@ -1596,7 +1601,7 @@ export function mine_instant_pool2({wallet, reward_share, target}){
       yield esleep(1000);
       do_update();
     }
-  } catch(err){ CEA(err);
+  } catch(err){ CEL(err);
     return {err: ''+err};
   } finally {
     yield net.topic_unpub('mine_instant');

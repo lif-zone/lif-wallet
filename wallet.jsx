@@ -5,7 +5,7 @@ import React, {useState, useEffect, useMemo, useRef, createContext,
 import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import etask from 'lif-kernel/etask.js';
-import {OE, OV, OA, ewait, esleep, ipc_postmessage, CE, CEA, json, assert, str,
+import {OE, OV, OA, ewait, esleep, ipc_postmessage, CE, CEL, json, assert, str,
 } from 'lif-kernel/util.js';
 const {split_ws} = str;
 import {settings_get, settings_save, settings_cs_fetch,
@@ -181,7 +181,7 @@ function useMining(){
         });
         try {
           yield mine_et;
-        } catch(err){ CEA(err); }
+        } catch(err){ CEL(err); }
         yield esleep(1000);
       }
       clearInterval(pool_handles.current[id]?.intervalId);
@@ -244,7 +244,7 @@ function useMining(){
         let ret;
         try {
           ret = yield mine_et;
-        } catch(err){ CEA(err);
+        } catch(err){ CEL(err);
           ret = {err: ''+err};
         }
         if (mode=='instant' && ret.tx){
@@ -1085,7 +1085,7 @@ function Mine_fund({wallet, value, start, onEarned}){
               return;
             }
           }
-        } catch(err){ CEA(err); }
+        } catch(err){ CEL(err); }
         yield esleep(1000);
       }
       setOn(false);
