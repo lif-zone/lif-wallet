@@ -1351,11 +1351,11 @@ export function mine_instant2({netconf, saddr, target}){
   let ret = yield net.topic_get('mine_instant');
   let addr = ret?.addr;
   if (!addr)
-    return _err('failed mine_instant call');
+    return _err('failed get topic mine_instant');
   if (!addr.length)
     return _err('no mining pools online');
   _status('connecting to pool server');
-  let rg_id, sock;
+  let rg_id, sock, _error;
   for (let id of addr){
     if (g_rg[id]?.cheat)
       continue;
@@ -1363,13 +1363,14 @@ export function mine_instant2({netconf, saddr, target}){
     ret = yield wait;
     if (ret.error){
       console.log('failed connecting to '+id);
+      _error = ret.error;
       continue;
     }
     sock = _sock;
     rg_id = id;
   }
   if (!rg_id)
-    return _err('no good mining pools online');
+    return _err('no good mining pools online: '+_error);
   let rg = g_rg[rg_id] ||= {template: 0, mined: 0, cheat: 0, success: 0};
   _status('getting block template');
   let template = yield sock.call('mine_instant_get_template', {addr: saddr});
@@ -1409,6 +1410,8 @@ export function mine_instant2({netconf, saddr, target}){
   mine_ret.header = buf_to_hex(mine_ret.header);
   let tx_ret = yield sock.call('mine_instant_submit',
     {header: mine_ret.header, addr: saddr});
+  if (tx_ret.error)
+    return _err_cheat('failed mine_instant_submit: '+tx_ret.error);
   let tx = tx_ret.tx;
   if (!tx)
     return _err_cheat('failed submitting winning share');
