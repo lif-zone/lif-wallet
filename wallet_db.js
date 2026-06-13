@@ -234,7 +234,7 @@ class electrum_rpc {
   }
   async call(method, ...params){
     let rpc = await this.connect();
-    return await rpc.call(method, params);
+    return await rpc.T_call(method, params);
   }
   close(){
     const rpc = g_electrum[this.url];
@@ -1320,7 +1320,7 @@ class Lif_net {
     return await this.call('rg_id', {rg_id});
   }
   listen(method, fn){
-    rpc_sock.listen(this.rpc, 'mine_instant', ({msg, sock})=>{
+    rpc_sock.listen(this.rpc, method, ({msg, sock})=>{
       sock.method('ping', ()=>({pong: 1}));
       return fn({msg, sock});
     });
@@ -1409,7 +1409,7 @@ export function mine_instant2({netconf, saddr, target}){
   mine_ret.header = buf_to_hex(mine_ret.header);
   let tx_ret = yield sock.call('mine_instant_submit',
     {header: mine_ret.header, addr: saddr});
-  let tx = tx_ret?.tx;
+  let tx = tx_ret.tx;
   if (!tx)
     return _err_cheat('failed submitting winning share');
   let _tx = _try(()=>bitcoin.Transaction.fromHex(tx));
