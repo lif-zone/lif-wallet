@@ -10,7 +10,7 @@ import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, esleep, assert, rpc_websocket, rpc_sock,
   _try, version as util_version, date_time,
 } from 'lif-kernel/util.js';
-import {lif_net_get} from 'lif-kernel/lif_netc.js';
+import {lif_net_get, lif_net_connect} from 'lif-kernel/lif_netc.js';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;
@@ -233,7 +233,7 @@ class electrum_rpc {
     }
     return rpc;
   }
-  async call(method, ...params){
+  async T_call(method, ...params){
     let rpc = await this.connect();
     return await rpc.T_call(method, params);
   }
@@ -244,34 +244,34 @@ class electrum_rpc {
     delete g_electrum[this.url];
   }
   async tx_get(tx_hash, verb){
-    return await this.call('blockchain.transaction.get', tx_hash, verb);
+    return await this.T_call('blockchain.transaction.get', tx_hash, verb);
   }
   async tx_broadcast(txraw){
-    return await this.call('blockchain.transaction.broadcast', txraw);
+    return await this.T_call('blockchain.transaction.broadcast', txraw);
   }
   async sh_get_balance(sh){
-    return await this.call('blockchain.scripthash.get_balance', sh);
+    return await this.T_call('blockchain.scripthash.get_balance', sh);
   }
   async sh_get_history(sh){
-    return await this.call('blockchain.scripthash.get_history', sh);
+    return await this.T_call('blockchain.scripthash.get_history', sh);
   }
   async sh_listunspent(sh){
-    return await this.call('blockchain.scripthash.listunspent', sh);
+    return await this.T_call('blockchain.scripthash.listunspent', sh);
   }
   async block_header(height){
-    return await this.call('blockchain.block.header', height);
+    return await this.T_call('blockchain.block.header', height);
   }
   async estimatefee(nblocks){
-    return await this.call('blockchain.estimatefee', nblocks);
+    return await this.T_call('blockchain.estimatefee', nblocks);
   }
   async lif_kv_get(key){
-    return await this.call('blockchain.lif_kv.get', key);
+    return await this.T_call('blockchain.lif_kv.get', key);
   }
   async mine_get_template(saddr){
-    return await this.call('blockchain.mine.get_template', saddr);
+    return await this.T_call('blockchain.mine.get_template', saddr);
   }
   async mine_submit_header(header){
-    return await this.call('blockchain.mine.submit_header', header);
+    return await this.T_call('blockchain.mine.submit_header', header);
   }
 }
 
@@ -923,31 +923,11 @@ export function mine_instant({netconf, saddr, target}){
   };
   const _status = status=>this.emit('status', {status});
   _status('searching for pool servers');
-  yield net._connect();
-  let ret = yield net.topic_get('mine_instant');
-  let addr = ret?.addr;
-  if (!addr)
-    return _err('failed get topic mine_instant');
-  if (!addr.length)
-    return _err('no mining pools online');
-  _status('connecting to pool server');
-  let rg_id, sock, _error;
-  for (let id of addr){
-    if (g_rg[id]?.cheat)
-      continue;
-    let {sock: _sock, wait} = net.connect(id, 'mine_instant');
-    ret = yield wait;
-    if (ret.error){
-      console.log('failed connecting to '+id);
-      _error = ret.error;
-      continue;
-    }
-    sock = _sock;
-    rg_id = id;
-  }
-  if (!rg_id)
-    return _err('no good mining pools online: '+_error);
-  let rg = g_rg[rg_id] ||= {template: 0, mined: 0, cheat: 0, success: 0};
+  let {rg, sock, error} = yield lif_net_connect('mine_instant',
+    {rg_block: rg=>rg.mine_instant?.cheat});
+  if (error)
+    return _err(error);
+  rg.mine_instant ||= {template: 0, mined: 0, cheat: 0, success: 0};
   _status('getting block template');
   let template = yield sock.call('mine_instant_get_template', {addr: saddr});
   if (template.error)
