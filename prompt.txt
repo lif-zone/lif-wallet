@@ -1415,3 +1415,22 @@ USER: Why not to pass the mining context to the widget, and from some places it 
 
 CLAUDE: Refactored Mine_progress to accept on/stats/symbol/successMsg props (already decoupled from context). Added successMsg prop for the 100% success state. Replaced Mine_fund's inline progress bar with <Mine_progress>, passing its local on/stats and a successMsg JSX node when successV is set.
 ---
+---
+USER:
+I need to add support for http_connect method in lif_rg.js. I copy-pasted tcp_connect method, but the code itself needs to be changed from TCP to http/https support (according to the URL provided). Also - add http_sock() which creates an http/https 'request socket' (which does the requests over rpc).
+
+CLAUDE:
+Implemented http_connect in lif_rg.js and created lif_net_client.js.
+
+lif_rg.js changes:
+- Added `import http from 'http'; import https from 'https';`
+- Replaced broken http_connect stub with real handler:
+  - Parses url via new URL(), resolves DNS, validates IP routing
+  - Creates http/https request with method and headers params
+  - Returns {} once setup done (client's sock.connect resolves)
+  - Accepts request body via sock.method('data')/sock.method('end')
+  - Streams response: sock.notify('response', {status, headers}), sock.notify('data', {data: hex}), sock.notify('close')
+
+lif_net_client.js (new file):
+- tcp_sock class: mirrors net.Socket API over rpc_sock (connect, write, setKeepAlive, setNoDelay, setTimeout, pause, resume, destroy, buffers writes before connect)
+- http_sock(rpc, {url, method, headers, body}): async function, returns {status, headers, body: Buffer} or {error}
