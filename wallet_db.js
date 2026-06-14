@@ -10,6 +10,7 @@ import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, esleep, assert, rpc_websocket, rpc_sock,
   _try, version as util_version, date_time,
 } from 'lif-kernel/util.js';
+import {lif_net_get} from 'lif-kernel/lif_netc.js';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;
@@ -906,100 +907,11 @@ function header_match(a, b){
   return buf_to_hex(_a)==buf_to_hex(_b);
 }
 
-class Lif_net {
-  rpc;
-  url;
-  _wait_open;
-  constructor(){
-    this.url = ws_origin()+'/.lif.rg';
-    this.rpc = new rpc_websocket({D: 1});
-    this.set_events();
-    this.rpc.on('close', ()=>this.is_closed = true);
-  }
-  set_events(){
-    this.rpc.method('ping', ()=>({pong: 1}));
-    this.rpc.method('version',
-      ()=>({name: 'lif-coin-wallet', version: util_version}));
-  }
-  connect(rg_id, method, params){
-    let sock = new rpc_sock();
-    this.set_events(sock);
-    let wait = (async()=>{
-      let ret = await sock.connect(this.rpc, 'rconnect',
-        {rg_id, method, params});
-      if (ret.error){
-        console.warn('failed connect', ret);
-        return ret;
-      }
-      let ping = await sock._call('ping');
-      if (ping.error || !ping.result.pong){
-        console.warn('failed ping', ping);
-        return {error: 'no pong'};
-      }
-      return ret;
-    })();
-    return {sock, wait};
-  }
-  async _connect(){
-    if (this._wait_open)
-      return await this._wait_open;
-    this._wait_open = ewait();
-    try {
-      await this.rpc.connect({url: this.url});
-    } catch(e){
-      console.error('rpc_connect', e);
-      this.rpc.close();
-      throw e; // return
-    }
-    try {
-      this.server_version = await this.rpc.T_call('version',
-        {name: 'lif-coin-wallet', version: util_version});
-    } catch(e){
-      console.error('server version rpc', e);
-      this.close();
-      throw e; // XXX return
-    }
-    return this._wait_open.return(this.rpc);
-  }
-  async call(method, params){
-    return await this.rpc.T_call(method, params);
-  }
-  close(){
-    this._wait_open.throw('close');
-    this.rpc.close();
-  }
-  async topic_get(topic){
-    return await this.call('topic_get', {topic});
-  }
-  async topic_pub(topic, data){
-    return await this.call('topic_pub', {topic, data});
-  }
-  async topic_unpub(topic){
-    return await this.call('topic_unpub', {topic});
-  }
-  async rcall(rg_id, method, params){
-    return await this.call('rcall', {rg_id, method, params});
-  }
-  async rg_id(rg_id){
-    return await this.call('rg_id', {rg_id});
-  }
-  listen(method, fn){
-    rpc_sock.listen(this.rpc, method, ({msg, sock})=>{
-      sock.method('ping', ()=>({pong: 1}));
-      return fn({msg, sock});
-    });
-  }
-}
-
-export function lif_net(){
-  return new Lif_net();
-}
-
 export function mine_instant({netconf, saddr, target}){
   return etask(function*mine_instant()
 {
   this.on('cancel', ()=>console.log('mine_instant canceled'));
-  const net = lif_net();
+  const net = lif_net_get();
   const _err = err=>{
     err = ''+err;
     this.emit('status', {err});
@@ -1108,7 +1020,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
   this.on('cancel', ()=>console.log('mine_instant_pool canceled'));
   const {netconf} = wallet;
   const {pow} = netconf;
-  const net = lif_net();
+  const net = lif_net_get();
   yield net._connect();
   const _this = this;
   const _err = err=>{

@@ -1434,3 +1434,12 @@ lif_rg.js changes:
 lif_net_client.js (new file):
 - tcp_sock class: mirrors net.Socket API over rpc_sock (connect, write, setKeepAlive, setNoDelay, setTimeout, pause, resume, destroy, buffers writes before connect)
 - http_sock(rpc, {url, method, headers, body}): async function, returns {status, headers, body: Buffer} or {error}
+---
+USER:
+in lif_netc.js build above http_sock() a fetch() compatible API. first arg is URL, second is optional {headers: ...}, just like fetch(). it is for the browser envirnoment. the function name should be lif_fetch()
+
+CLAUDE:
+Added lif_fetch() and Lif_response class to lif_netc.js above http_sock():
+- lif_fetch(url, {rpc, method='GET', headers={}, body=null}={}) — fetch-compatible signature, rpc in options
+- Lif_response class with status, ok, headers, text(), json(), arrayBuffer()
+- Throws on error, returns Lif_response on success
