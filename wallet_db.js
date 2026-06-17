@@ -10,7 +10,7 @@ import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, esleep, assert, rpc_websocket, rpc_sock,
   _try, version as util_version, date_time,
 } from 'lif-kernel/util.js';
-import {lif_net_get, lif_net_connect} from 'lif-kernel/lif_net_c.js';
+import {lif_net_get, lif_net_connect} from 'lif-kernel/node_leaf_c.js';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;
