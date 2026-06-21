@@ -2,8 +2,21 @@
 
 [![BAT](https://github.com/lif-zone/lif-wallet/actions/workflows/test.yml/badge.svg)](https://github.com/lif-zone/lif-wallet/actions/workflows/test.yml)
 
-Bright Wallet is a **LIF** and **BTC** JS HD Wallet for the browser.
+LIF Wallet is a **LIF** (CoinType 1842) and **BTC** (CoinType 0) JS
+HD Wallet for the browser.
 [LIF Network][lif.zone]
+
+- Works on Chrome/Edge/Safari
+- Works on Windows/Linux/Max/Android/IOS
+- Electrum JSON RPC servers over WebSocket, configurable servers
+- Private keys never leave your device
+- Multiple Wallets
+- Fee control
+- Your keys BIP39
+- Multi-coin support (LIF and BTC) BIP44
+- SegWit P2SH
+- HD wallets BIP32
+- Open Source
 
 ## Install
 
