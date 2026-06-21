@@ -12,10 +12,16 @@ HD Wallet for the browser.
 - Private keys never leave your device
 - Multiple Wallets
 - Fee control
-- Your keys BIP39
-- Multi-coin support (LIF and BTC) BIP44
-- SegWit P2SH
-- HD wallets BIP32
+- **BIP32** - HD wallets: one master seed generates all your addresses and
+  keys
+- **BIP39** - 12-word mnemonic backup phrase, plus optional
+  passphrase ("25th word") for extra security
+- **BIP44** - Multi-coin support (LIF coin type 1842, BTC coin type 0),
+  proper change addresses, gap limit 20
+- **BIP84** - Native SegWit addresses (`bc1...` for BTC, `lif1...` for LIF)
+  via derivation path `m/84'/coin_type'/0'`, lowest transaction fees
+- **BIP173** - Bech32 address encoding for native SegWit
+- Custom derivation path override for advanced users
 - Open Source
 
 ## Install
