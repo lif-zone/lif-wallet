@@ -24,6 +24,14 @@
     "bip39": "3.1.0",
     "qrcode": "^1.5.4"
   },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@eslint/json": "2.0.0",
+    "eslint": "10.5.0",
+    "globals": "17.6.0",
+    "bmocha": "^2.2.1",
+    "puppeteer-core": "^25.1.0"
+  },
   "lif": {
     "webapp": "./main.tsx"
   },
