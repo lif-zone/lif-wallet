@@ -1453,3 +1453,5 @@ Added websocket_connect to lif_rg.js and lif_WebSocket class to lif_netc.js.
 Server (lif_rg.js): resolves hostname, blocks private IPs, replaces IP in URL with servername for TLS SNI, waits for ws.open before returning {}, proxies messages bidirectionally (text as string, binary as hex), sock.method('send'/'close') from client, sock.notify('message'/'close'/'error') to client, sock.on('close') calls ws.terminate().
 
 Client (lif_netc.js): lif_WebSocket(rpc, url, protocols) class extending EventEmitter, readyState 0→1→2→3 like native WebSocket, supports both .on('message', fn) and .onmessage = fn via _set_handler getters/setters, binary data as hex on wire arrives as Buffer.
+
+---
