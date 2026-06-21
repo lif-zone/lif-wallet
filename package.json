@@ -26,5 +26,9 @@
   },
   "lif": {
     "webapp": "./main.tsx"
+  },
+  "scripts": {
+    "lint": "eslint",
+    "test": "bmocha --reporter spec test/*.js"
   }
 }
