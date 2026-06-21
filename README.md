@@ -19,7 +19,7 @@ HD Wallet for the browser.
 - **BIP44** - Multi-coin support (LIF coin type 1842, BTC coin type 0),
   proper change addresses, gap limit 20
 - **BIP84** - Native SegWit addresses (`bc1...` for BTC, `lif1...` for LIF)
-  via derivation path `m/84'/coin_type'/0'`, lowest transaction fees
+  via derivation path `m/84'/1842'/0'`, lowest transaction fees
 - **BIP173** - Bech32 address encoding for native SegWit
 - Custom derivation path override for advanced users
 - Open Source
