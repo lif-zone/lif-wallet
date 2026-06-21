@@ -29,7 +29,7 @@
     "@eslint/json": "2.0.0",
     "eslint": "10.5.0",
     "globals": "17.6.0",
-    "bmocha": "^2.2.1",
+    "mocha": "11.7.6",
     "puppeteer-core": "^25.1.0"
   },
   "lif": {
@@ -37,6 +37,6 @@
   },
   "scripts": {
     "lint": "eslint",
-    "test": "bmocha --reporter spec test/*.js"
+    "test": "mocha --reporter spec test/*.js"
   }
 }
