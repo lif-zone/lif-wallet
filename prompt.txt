@@ -1455,3 +1455,17 @@ Server (lif_rg.js): resolves hostname, blocks private IPs, replaces IP in URL wi
 Client (lif_netc.js): lif_WebSocket(rpc, url, protocols) class extending EventEmitter, readyState 0→1→2→3 like native WebSocket, supports both .on('message', fn) and .onmessage = fn via _set_handler getters/setters, binary data as hex on wire arrives as Buffer.
 
 ---
+
+---
+USER:
+in lif-wallet/test/browser.js, after puppet loads the browser and the page loads, I want to start testing and doing actions on the page. initially, after completing to load, the page should have the text "LIF Wallet" in one of the DIVs. Its a dynamically loaded HTML - so that DIV does not exist in the initial html, rather only after the react code completes loading it will be there. thats why today it fails - because it checks res.text() which is the initial HTML before React renders.
+
+CLAUDE:
+Replaced res.text() check with page.waitForFunction() that polls until a div contains "LIF Wallet" (after React renders). Also bumped the test timeout from 15s to 30s. Removed the console.log(body) debug line.
+
+---
+USER:
+run it (browser test)
+
+CLAUDE:
+Debugged why "LIF Wallet" never appeared: app takes ~25s to load (SW installs, reloads page, then bip39 wordlists + wallet.jsx take 21s to bundle). Fixed: increased test timeout to 60s, waitForNavigation to catch SW reload, waitForFunction timeout to 50s. Also switched server spawn from node_modules/lif-kernel/server.js to server.js (the wallet's own server with correct URL map). Both tests now pass.

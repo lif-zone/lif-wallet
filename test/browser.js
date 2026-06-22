@@ -12,7 +12,7 @@ let proc;
 
 describe('browser', function(){
   before(()=>etask(function*(){
-    proc = spawn('node', ['node_modules/lif-kernel/server.js', '-p', ''+port], {
+    proc = spawn('node', ['server.js', '-p', ''+port], {
       cwd: root,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -39,7 +39,7 @@ describe('browser', function(){
   });
 
   it('browser: http://localhost loads successfully', async function(){
-    this.timeout(15000);
+    this.timeout(60000);
     let browser = await puppeteer.launch({
       executablePath: '/usr/bin/google-chrome',
       headless: true,
@@ -52,10 +52,15 @@ describe('browser', function(){
       let res = await page.goto(url_base+'?/lif-wallet/',
         {waitUntil: 'domcontentloaded'});
       assert.equal(res.status(), 200);
+      // The kernel installs a ServiceWorker then reloads — wait for that navigation
+      await page.waitForNavigation({waitUntil: 'domcontentloaded', timeout: 15000})
+        .catch(()=>{}); // optional: may not happen if SW already installed
+      // Wait for React to render — "LIF Wallet" appears in the DOM after hydration
+      await page.waitForFunction(
+        ()=>[...document.querySelectorAll('div')].some(el=>el.textContent.includes('LIF Wallet')),
+        {timeout: 50000}
+      );
       assert.equal(errors.length, 0, 'page JS errors: '+errors.join(', '));
-      let body = await res.text();
-      assert.ok(body.includes('LIF Wallet'),
-        'body should contain "LIF Wallet"');
     } finally {
       await browser.close();
     }
