@@ -48,18 +48,31 @@ describe('browser', function(){
     try {
       let page = await browser.newPage();
       let errors = [];
+      let last_activity = Date.now();
+      const bump = ()=>{ last_activity = Date.now(); };
       page.on('pageerror', err=>errors.push(err.message));
+      page.on('console', bump);
+      page.on('response', bump); // network responses also count as progress
       let res = await page.goto(url_base+'?/lif-wallet/',
         {waitUntil: 'domcontentloaded'});
       assert.equal(res.status(), 200);
       // The kernel installs a ServiceWorker then reloads — wait for that navigation
       await page.waitForNavigation({waitUntil: 'domcontentloaded', timeout: 15000})
         .catch(()=>{}); // optional: may not happen if SW already installed
-      // Wait for React to render — "LIF Wallet" appears in the DOM after hydration
-      await page.waitForFunction(
-        ()=>[...document.querySelectorAll('div')].some(el=>el.textContent.includes('LIF Wallet')),
-        {timeout: 50000}
-      );
+      // Poll until React renders "LIF Wallet"; fail if no console log for 5s (hang detection)
+      await (async()=>{
+        while (true){
+          await new Promise(r=>setTimeout(r, 500));
+          if (Date.now()-last_activity>5000)
+            throw new Error('hang: no console/network activity for 5s');
+          let found = await page.evaluate(()=>
+            [...document.querySelectorAll('div')].some(
+              el=>el.textContent.includes('LIF Wallet'))
+          );
+          if (found)
+            return;
+        }
+      })();
       assert.equal(errors.length, 0, 'page JS errors: '+errors.join(', '));
     } finally {
       await browser.close();
