@@ -3,7 +3,7 @@ import {spawn} from 'node:child_process';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import puppeteer from 'puppeteer-core';
-import etask from '../etask.js';
+import etask from 'lif-kernel/etask';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = 4004;
