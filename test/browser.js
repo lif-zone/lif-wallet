@@ -49,9 +49,13 @@ describe('browser', function(){
       let page = await browser.newPage();
       let errors = [];
       page.on('pageerror', err=>errors.push(err.message));
-      let res = await page.goto(url_base, {waitUntil: 'domcontentloaded'});
+      let res = await page.goto(url_base+'?/lif-wallet/',
+        {waitUntil: 'domcontentloaded'});
       assert.equal(res.status(), 200);
       assert.equal(errors.length, 0, 'page JS errors: '+errors.join(', '));
+      let body = await res.text();
+      assert.ok(body.includes('LIF Wallet'),
+        'body should contain "LIF Wallet"');
     } finally {
       await browser.close();
     }

@@ -346,7 +346,7 @@ function BrightWallet(){
           }
           <h1 style={{cursor: 'pointer', fontSize: 24, margin: 0, display: 'flex', alignItems: 'center', gap: 8}} onClick={goHome}>
             <img src={import.meta.resolve('./bright.ico')} style={{width: 32, height: 32}} />
-            Bright Wallet
+            LIF Wallet
           </h1>
         </div>
         <div style={{display: 'flex', gap: 8}}>
