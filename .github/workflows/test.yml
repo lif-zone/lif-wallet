@@ -37,7 +37,7 @@ jobs:
       - name: Install
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Test
-        run: npm run test
+        run: npm run test-ci
       - name: Publish Test Results (Mocha)
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
