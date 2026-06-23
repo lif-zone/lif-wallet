@@ -39,6 +39,6 @@
   "scripts": {
     "lint": "eslint",
     "test": "mocha --reporter spec test/*.js",
-    "test-ci": "mocha --reporter mocha-junit-reporter --reporter-options mochaFile=./test-results.xml test/*.js"
+    "test-ci": "mocha --reporter spec --reporter mocha-junit-reporter --reporter-options mochaFile=./test-results.xml test/*.js"
   }
 }
