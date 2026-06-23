@@ -1476,3 +1476,18 @@ add interval checking that there is progress (via LOG messages) — at least eve
 
 CLAUDE:
 Replaced waitForFunction with a polling loop (500ms interval). Tracks last_activity timestamp, updated on both console messages and network responses (page.on('response')). Needed network responses because there's a natural ~10s gap in console output during module loading (bip39 wordlists being fetched). If no console or network activity for 5s → throws 'hang: no console/network activity for 5s'. Test passes in ~24s.
+
+---
+USER:
+lif-wallet: when I run 'npx mocha test/browser.js' - both tests pass. in github actions, only the first test passes, and the second one (which actually loads the page in a browser) fails with page JS errors: Uncaught (in promise) SyntaxError: Unexpected token 'T', "TypeError:"... is not valid JSON. What to do to find out exactly what fails? what to do to recreate this failure locally?
+
+CLAUDE:
+Added detailed logging to test/browser.js: [pageerror] prefix, [page:type] for all console messages, [reqfail] for failed requests, [res:status] for non-200 responses. Also added --user-data-dir=/tmp/puppeteer-fresh-profile to reproduce clean-state locally.
+
+Running locally with fresh profile revealed the real bug: waitForNavigation({timeout:15000}) blocks for 15s when SW is already installed (no reload). When the polling loop starts, last_activity is already >10s stale (RPC errors finished before the 15s timeout), causing immediate hang detection.
+
+Fixed by:
+1. Resetting last_activity = Date.now() after waitForNavigation resolves/times out
+2. Checking DOM (found "LIF Wallet") BEFORE checking hang timer - so a loaded page always succeeds
+
+Both tests now pass locally (18s).
