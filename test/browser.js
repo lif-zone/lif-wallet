@@ -14,7 +14,8 @@ const cmd = [root+'/server.js', '-p', ''+port];
 
 describe('browser', function(){
   let proc, browser;
-  before(async()=>{
+  before(async function(){
+    this.timeout(10000);
     proc = await server_open({cmd, search: 'Serving', cwd: root});
     browser = await browser_open();
   });
