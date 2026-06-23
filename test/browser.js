@@ -9,41 +9,25 @@ import {browser_open, browser_test} from 'lif-kernel/test/test_lib.js';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = 4004;
 const url_base = `http://localhost:${port}`;
-let proc;
+const cmd = ['server.js', '-p', ''+port];
 
 describe('browser', function(){
+  let proc, browser;
   before(()=>etask(function*(){
-    proc = spawn('node', ['server.js', '-p', ''+port], {
-      cwd: root,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let wait = this.wait(1000);
-    proc.stdout.on('data', data=>{
-      if ((''+data).includes('Serving'))
-        this.return();
-    });
-    proc.on('error', err=>this.throw(err));
-    proc.on('exit', code=>this.throw(Error('server exited early: '+code)));
-    return yield wait;
+    proc = await server_open({cmd, search: 'Serving'});
+    browser = await browser_open();
   }));
   after(()=>{
+    browser?.close();
     proc?.kill();
   });
-  it('GET /lif-kernel/hi.js returns 200 with JS content', async()=>{
-    let res = await fetch(url_base+'/lif-kernel/hi.js');
-    assert.equal(res.status, 200);
-    assert.match(res.headers.get('content-type')||'', /javascript/);
-    let body = await res.text();
-    assert.ok(body.includes('hi world'), 'body should contain "hi world"');
+  it('GET /lif-kernel/hi.js', async()=>{
+    await fetch_test({url: url_base+'/lif-kernel/hi.js', search: 'hi world'});
   });
-  it('load page /?/lif-wallet/', async function(){
+  it('page /?/lif-wallet/', async function(){
     this.timeout(60000);
     let browser = await browser_open();
-    try {
-      await browser_test({browser, url: url_base+'/?/lif-wallet/',
-        search: 'LIF Wallet'});
-    } finally {
-      await browser?.close();
-    }
+    await browser_test({browser, url: url_base+'/?/lif-wallet/',
+      search: 'LIF Wallet'});
   });
 });
