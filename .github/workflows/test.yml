@@ -26,6 +26,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-24.04
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
       - name: Setup
@@ -38,7 +39,6 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Test
         run: npm run test-ci
-        timeout-minutes: 2
       - name: Publish Test Results (Mocha)
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
