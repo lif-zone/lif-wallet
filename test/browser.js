@@ -26,8 +26,7 @@ describe('browser', function(){
     await fetch_test({url: url_base+'/lif-kernel/hi.js', search: 'hi world'});
   });
   it('page /?/lif-wallet/', async function(){
-    this.timeout(60000);
-    let browser = await browser_open();
+    this.timeout(30000);
     await browser_test({browser, url: url_base+'/?/lif-wallet/main.tsx',
       search: 'LIF Wallet'});
   });
