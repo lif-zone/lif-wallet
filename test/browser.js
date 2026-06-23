@@ -4,7 +4,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import puppeteer from 'puppeteer-core';
 import etask from 'lif-kernel/etask';
-import {browser_open, browser_test} from 'lif-kernel/test/test_lib.js';
+import {browser_open, browser_test, server_open, fetch_test,
+} from 'lif-kernel/test/test_lib.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = 4004;
@@ -13,10 +14,10 @@ const cmd = ['server.js', '-p', ''+port];
 
 describe('browser', function(){
   let proc, browser;
-  before(()=>etask(function*(){
+  before(()=>async()=>{
     proc = await server_open({cmd, search: 'Serving'});
     browser = await browser_open();
-  }));
+  });
   after(()=>{
     browser?.close();
     proc?.kill();
