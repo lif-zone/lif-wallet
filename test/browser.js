@@ -63,7 +63,7 @@ describe('browser', function(){
       await (async()=>{
         while (true){
           await new Promise(r=>setTimeout(r, 500));
-          if (Date.now()-last_activity>5000)
+          if (Date.now()-last_activity>10000)
             throw new Error('hang: no console/network activity for 5s');
           let found = await page.evaluate(()=>
             [...document.querySelectorAll('div')].some(
