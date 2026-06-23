@@ -28,7 +28,7 @@ describe('browser', function(){
   it('page /?/lif-wallet/', async function(){
     this.timeout(60000);
     let browser = await browser_open();
-    await browser_test({browser, url: url_base+'/?/lif-wallet/',
+    await browser_test({browser, url: url_base+'/?/lif-wallet/main.tsx',
       search: 'LIF Wallet'});
   });
 });
