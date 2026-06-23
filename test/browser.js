@@ -14,7 +14,7 @@ const cmd = ['server.js', '-p', ''+port];
 
 describe('browser', function(){
   let proc, browser;
-  before(()=>async()=>{
+  before(async()=>{
     proc = await server_open({cmd, search: 'Serving'});
     browser = await browser_open();
   });
