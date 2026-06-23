@@ -39,11 +39,11 @@ describe('browser', function(){
     assert.ok(body.includes('hi world'), 'body should contain "hi world"');
   });
 
-  it('browser: http://localhost loads successfully', async function(){
+  it('load page /?/lif-wallet/', async function(){
     this.timeout(60000);
     let browser = await browser_open();
     try {
-    await browser_test({browser, url: url_base+'?/lif-wallet/',
+    await browser_test({browser, url: url_base+'/?/lif-wallet/',
       search: 'LIF Wallet'});
     } finally {
       await browser?.close();
