@@ -40,6 +40,6 @@
   "scripts": {
     "lint": "eslint",
     "test": "mocha --reporter spec test/*.js",
-    "test-ci": "mocha --reporter mocha-multi-reporters --reporter-options configFile=mocharc.json test/*.js"
+    "test-ci": "mocha --reporter mocha-multi-reporters --reporter-options configFile=test/mocharc.json test/*.js"
   }
 }
