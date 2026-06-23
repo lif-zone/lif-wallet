@@ -43,8 +43,8 @@ describe('browser', function(){
     this.timeout(60000);
     let browser = await browser_open();
     try {
-    await browser_test({browser, url: url_base+'/?/lif-wallet/',
-      search: 'LIF Wallet'});
+      await browser_test({browser, url: url_base+'/?/lif-wallet/',
+        search: 'LIF Wallet'});
     } finally {
       await browser?.close();
     }
