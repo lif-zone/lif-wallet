@@ -26,11 +26,9 @@ describe('browser', function(){
     proc.on('exit', code=>this.throw(Error('server exited early: '+code)));
     return yield wait;
   }));
-
   after(()=>{
     proc?.kill();
   });
-
   it('GET /lif-kernel/hi.js returns 200 with JS content', async()=>{
     let res = await fetch(url_base+'/lif-kernel/hi.js');
     assert.equal(res.status, 200);
@@ -38,7 +36,6 @@ describe('browser', function(){
     let body = await res.text();
     assert.ok(body.includes('hi world'), 'body should contain "hi world"');
   });
-
   it('load page /?/lif-wallet/', async function(){
     this.timeout(60000);
     let browser = await browser_open();
