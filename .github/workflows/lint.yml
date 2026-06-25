@@ -7,10 +7,9 @@ on:
   pull_request:
 
 jobs:
-  test:
-    name: Test
+  lint:
+    name: Lint
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
       - name: Setup
@@ -21,11 +20,5 @@ jobs:
           cache-dependency-path: '**/package-lock.json'
       - name: Install
         run: npm ci --prefer-offline --no-audit --no-fund
-      - name: Test
-        run: npm run test-ci
-      - name: Publish Test Results (Mocha)
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always()
-        with:
-          files: ./test/results.xml
-          comment_mode: always
+      - name: Lint
+        run: npm run lint

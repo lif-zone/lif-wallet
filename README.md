@@ -1,6 +1,7 @@
 # Lifcoin
 
-[![BAT](https://github.com/lif-zone/lif-wallet/actions/workflows/test.yml/badge.svg)](https://github.com/lif-zone/lif-wallet/actions/workflows/test.yml)
+[![lint](https://github.com/lif-zone/lif-wallet/actions/workflows/lint.yml/badge.svg)](https://github.com/lif-zone/lif-wallet/actions/workflows/lint.yml)
+[![test](https://github.com/lif-zone/lif-wallet/actions/workflows/test.yml/badge.svg)](https://github.com/lif-zone/lif-wallet/actions/workflows/test.yml)
 
 LIF Wallet is a **LIF** (CoinType 1842) and **BTC** (CoinType 0) JS
 HD Wallet for the browser.
