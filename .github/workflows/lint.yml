@@ -1,4 +1,4 @@
-name: BAT
+name: BAT lint
 
 on:
   push:
