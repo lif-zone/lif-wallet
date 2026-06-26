@@ -200,6 +200,9 @@ export function lif_server_set(val){
 
 const g_electrum = {};
 class electrum_rpc {
+  url;
+  rpc;
+  error;
   constructor(netconf){
     this.netconf = netconf;
     let url = netconf.electrum;
@@ -214,9 +217,17 @@ class electrum_rpc {
         return rpc;
       rpc.close();
     }
-    rpc = g_electrum[this.url] = new rpc_websocket({jsonrpc: '2.0', D: 1});
     try {
-      await rpc.connect({url: this.url});
+      if (0 && this.url.endsWith('/.lif.net/electrum')){
+        let {rg, sock, error} = await lif_net_connect(
+          'lifcoin/electrum', null, {jsonrpc: '2.0', D: 1});
+        rpc = g_electrum[this.url] = sock;
+        if (error)
+          throw error;
+      } else {
+        rpc = g_electrum[this.url] = new rpc_websocket({jsonrpc: '2.0', D: 1});
+        await rpc.connect({url: this.url});
+      }
     } catch(e){
       console.error('rpc_connect', e);
       rpc.close();
