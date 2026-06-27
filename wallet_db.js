@@ -8,7 +8,7 @@ import {ECPairFactory} from 'ecpair';
 const ecpair = ECPairFactory(ecc);
 import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, esleep, assert, rpc_websocket, rpc_sock,
-  _try, version as util_version, date_time,
+  _try, version as util_version, date_time, str,
 } from 'lif-kernel/util.js';
 import {lif_net_get, lif_net_connect, rg_id_get,
 } from 'lif-kernel/net_leaf_c.js';
@@ -51,7 +51,8 @@ const netconf_def = {
     name: 'Lifcoin', // Life Chai
     symbol: 'LIF',
     network: networks_lif,
-    electrum: '/.lif.net/electrum',
+    //electrum: '/.lif.net/electrum',
+    electrum: 'lif:net/lifcoin/electrum',
     explorer_tx: 'http://localhost:5000/tx/',
     coin_type: 1842,
     fee_def: 5000000, // 1MB = 50LIF
@@ -64,8 +65,9 @@ const netconf_def = {
     name: 'Bitcoin',
     symbol: 'BTC',
     network: bitcoin.networks.bitcoin,
+    electrum: 'lif:net/bitcoin/electrum',
     //electrum: 'wss://electrumx.nimiq.com:443/electrumx', // restricted from localhost:5000
-    electrum: 'wss://bitcoinserver.nl:50004', // unrestricted
+    //electrum: 'wss://bitcoinserver.nl:50004', // unrestricted
     // electrum: 'wss://electrum.blockstream.info:700', // does not work
     explorer_tx: 'https://mempool.space/tx/',
     coin_type: 0,
@@ -76,7 +78,8 @@ const netconf_def = {
     name: 'Bitcoin Testnet',
     symbol: 'tBTC',
     network: bitcoin.networks.testnet,
-    electrum: 'wss://electrum.blockstream.info:993',
+    electrum: 'lif:net/bitcoin_test/electrum',
+    //electrum: 'wss://electrum.blockstream.info:993',
     explorer_tx: 'https://mempool.space/testnet/tx/',
     coin_type: 1,
     fee_def: 1000,
@@ -214,17 +217,18 @@ class electrum_rpc {
   async connect(){
     let conn, rpc;
     if (conn = g_electrum[this.url]){
-      rpc = conn.rpc;
       await conn.wait;
+      rpc = conn.rpc;
       if (rpc && !rpc.error)
         return conn.rpc;
       rpc?.close();
     }
     conn = g_electrum[this.url] = {rpc: null, wait: ewait()};
     try {
-      if (1 && this.url.endsWith('/electrum')){
+      let v;
+      if (v=str.starts(this.url, 'lif:net/')){
         let {rg, sock, error} = await lif_net_connect(
-          'lifcoin/electrum', null, {jsonrpc: '2.0', D: 1});
+          v.rest, null, {jsonrpc: '2.0', D: 1});
         rpc = conn.rpc = sock;
         if (error)
           throw error;
@@ -296,88 +300,6 @@ class electrum_rpc {
 export function _el(netconf){
   return new electrum_rpc(netconf);
 }
-
-const g_electrum2 = {};
-class electrum_rpc2 {
-  constructor(netconf){
-    this.netconf = netconf;
-    let url = netconf.electrum;
-    if (url[0]=='/')
-      url = ws_origin()+url;
-    this.url = url;
-  }
-  async connect(){
-    let rpc;
-    if (rpc = g_electrum2[this.url]){
-      if (!rpc.error)
-        return rpc;
-      rpc.close();
-    }
-    rpc = g_electrum2[this.url] = new rpc_websocket({jsonrpc: '2.0', D: 1});
-    try {
-      await rpc.connect({url: this.url});
-    } catch(e){
-      console.error('rpc_connect', e);
-      rpc.close();
-      throw e; // return
-    }
-    try {
-      this.server_version = await rpc.T_call('server.version',
-        ['lif-coin-wallet', '1.4']);
-      this.server_banner = await rpc.T_call('server.banner');
-    } catch(e){
-      console.error('server version rpc', e);
-      this.close();
-      throw e; // XXX return
-    }
-    return rpc;
-  }
-  async T_call(method, ...params){
-    let rpc = await this.connect();
-    return await rpc.T_call(method, params);
-  }
-  close(){
-    const rpc = g_electrum2[this.url];
-    if (rpc)
-      rpc.close();
-    delete g_electrum2[this.url];
-  }
-  async tx_get(tx_hash, verb){
-    return await this.T_call('blockchain.transaction.get', tx_hash, verb);
-  }
-  async tx_broadcast(txraw){
-    return await this.T_call('blockchain.transaction.broadcast', txraw);
-  }
-  async sh_get_balance(sh){
-    return await this.T_call('blockchain.scripthash.get_balance', sh);
-  }
-  async sh_get_history(sh){
-    return await this.T_call('blockchain.scripthash.get_history', sh);
-  }
-  async sh_listunspent(sh){
-    return await this.T_call('blockchain.scripthash.listunspent', sh);
-  }
-  async block_header(height){
-    return await this.T_call('blockchain.block.header', height);
-  }
-  async estimatefee(nblocks){
-    return await this.T_call('blockchain.estimatefee', nblocks);
-  }
-  async lif_kv_get(key){
-    return await this.T_call('blockchain.lif_kv.get', key);
-  }
-  async mine_get_template(saddr){
-    return await this.T_call('blockchain.mine.get_template', saddr);
-  }
-  async mine_submit_header(header){
-    return await this.T_call('blockchain.mine.submit_header', header);
-  }
-}
-
-export function _el2(netconf){
-  return new electrum_rpc2(netconf);
-}
-
 
 // id → single wallet object instance (mutated in place)
 const g_wallets = {};
