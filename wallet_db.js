@@ -10,7 +10,8 @@ import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, esleep, assert, rpc_websocket, rpc_sock,
   _try, version as util_version, date_time,
 } from 'lif-kernel/util.js';
-import {lif_net_get, lif_net_connect} from 'lif-kernel/net_leaf_c.js';
+import {lif_net_get, lif_net_connect, rg_id_get,
+} from 'lif-kernel/net_leaf_c.js';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;
@@ -211,26 +212,30 @@ class electrum_rpc {
     this.url = url;
   }
   async connect(){
-    let rpc;
-    if (rpc = g_electrum[this.url]){
-      if (!rpc.error)
-        return rpc;
-      rpc.close();
+    let conn, rpc;
+    if (conn = g_electrum[this.url]){
+      rpc = conn.rpc;
+      await conn.wait;
+      if (rpc && !rpc.error)
+        return conn.rpc;
+      rpc?.close();
     }
+    conn = g_electrum[this.url] = {rpc: null, wait: ewait()};
     try {
-      if (0 && this.url.endsWith('/.lif.net/electrum')){
+      if (1 && this.url.endsWith('/electrum')){
         let {rg, sock, error} = await lif_net_connect(
           'lifcoin/electrum', null, {jsonrpc: '2.0', D: 1});
-        rpc = g_electrum[this.url] = sock;
+        rpc = conn.rpc = sock;
         if (error)
           throw error;
       } else {
-        rpc = g_electrum[this.url] = new rpc_websocket({jsonrpc: '2.0', D: 1});
+        rpc = conn.rpc = new rpc_websocket({jsonrpc: '2.0', D: 1});
         await rpc.connect({url: this.url});
       }
     } catch(e){
       console.error('rpc_connect', e);
-      rpc.close();
+      rpc?.close();
+      conn.wait.throw(e);
       throw e; // return
     }
     try {
@@ -240,8 +245,10 @@ class electrum_rpc {
     } catch(e){
       console.error('server version rpc', e);
       this.close();
+      conn.wait.throw(e);
       throw e; // XXX return
     }
+    conn.wait.return();
     return rpc;
   }
   async T_call(method, ...params){
@@ -249,9 +256,9 @@ class electrum_rpc {
     return await rpc.T_call(method, params);
   }
   close(){
-    const rpc = g_electrum[this.url];
-    if (rpc)
-      rpc.close();
+    const conn = g_electrum[this.url];
+    if (conn?.rpc)
+      conn.rpc.close();
     delete g_electrum[this.url];
   }
   async tx_get(tx_hash, verb){
@@ -988,9 +995,6 @@ export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   return {...ret, reward};
 }); }
 
-let g_rg = {};
-let g_rg_id = ''+Math.floor(Math.random()*1000000000);
-
 function header_match(a, b){
   let _a = buf_from_hex(a), _b = buf_from_hex(b);
   header_set_time(_a, 0);
@@ -1110,7 +1114,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
   let total_h = 0;
   try {
     const el = _el(netconf);
-    yield net.rg_id(g_rg_id);
+    yield net.rg_id(rg_id_get());
     const saddr = wallet.c.receiveAddress;
     _status('getting block template');
     const template = yield el.mine_get_template(saddr);
