@@ -10,7 +10,7 @@ import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, esleep, assert, rpc_websocket, rpc_sock,
   _try, version as util_version, date_time, str,
 } from 'lif-kernel/util.js';
-import {lif_net_get, lif_net_connect, rg_id_get,
+import {lifnet_online, lifnet_connect, rg_id_get,
 } from 'lif-kernel/net_leaf_c.js';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
@@ -51,8 +51,8 @@ const netconf_def = {
     name: 'Lifcoin', // Life Chai
     symbol: 'LIF',
     network: networks_lif,
-    //electrum: '/.lif.net/electrum',
-    electrum: 'lif:net/lifcoin/electrum',
+    electrum: '/.lif.net/electrum',
+    //electrum: 'lif:net/lifcoin/electrum',
     explorer_tx: 'http://localhost:5000/tx/',
     coin_type: 1842,
     fee_def: 5000000, // 1MB = 50LIF
@@ -227,7 +227,7 @@ class electrum_rpc {
     try {
       let v;
       if (v=str.starts(this.url, 'lif:net/')){
-        let {rg, sock, error} = await lif_net_connect(
+        let {rg, sock, error} = await lifnet_connect(
           v.rest, null, {jsonrpc: '2.0', D: 1});
         rpc = conn.rpc = sock;
         if (error)
@@ -941,7 +941,7 @@ export function mine_instant({netconf, saddr, target}){
   };
   const _status = status=>this.emit('status', {status});
   _status('searching for pool servers');
-  let {rg, sock, error} = yield lif_net_connect('mine_instant',
+  let {rg, sock, error} = yield lifnet_connect('mine_instant',
     {rg_block: rg=>rg.mine_instant?.cheat});
   if (error)
     return _err(error);
@@ -1018,8 +1018,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
   this.on('cancel', ()=>console.log('mine_instant_pool canceled'));
   const {netconf} = wallet;
   const {pow} = netconf;
-  const net = lif_net_get();
-  yield net._connect();
+  const net = yield lifnet_online();
   const _this = this;
   const _err = err=>{
     err = ''+err;
