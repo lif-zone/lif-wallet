@@ -1017,7 +1017,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
   this.on('cancel', ()=>console.log('mine_instant_pool canceled'));
   const {netconf} = wallet;
   const {pow} = netconf;
-  const net = yield lifnet_online();
+  const lifnet = yield lifnet_online();
   const _this = this;
   const _err = err=>{
     err = ''+err;
@@ -1034,7 +1034,6 @@ export function mine_instant_pool({wallet, reward_share, target}){
   let total_h = 0;
   try {
     const el = _el(netconf);
-    yield net.rg_id(rg_id_get());
     const saddr = wallet.c.receiveAddress;
     _status('getting block template');
     const template = yield el.mine_get_template(saddr);
@@ -1067,7 +1066,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
     _status('starting mining pool');
     console.log('starting mining pool', template.header);
     do_update();
-    net.listen('mine_instant', ({msg, sock})=>{
+    lifnet.listen('mine_instant', ({msg, sock})=>{
       console.log('client connected', msg);
       // do here the pool mining
       sock.method('mine_instant_get_template', ({addr})=>{
@@ -1171,7 +1170,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
       return {result: {tx: tx.tx.toHex(), txid: tx.tx.getId(),
         reward: pay_reward-fee, fee, addr: addr}};
     }); }
-    let ret = yield net.topic_pub('mine_instant',
+    let ret = yield lifnet.topic_pub('mine_instant',
       {reward: pay_reward, fee, target});
     while (1){
       yield esleep(1000);
@@ -1180,8 +1179,8 @@ export function mine_instant_pool({wallet, reward_share, target}){
   } catch(err){ CEL(err);
     return {err: ''+err};
   } finally {
-    yield net.topic_unpub('mine_instant');
-    net.close();
+    yield lifnet.topic_unpub('mine_instant');
+    lifnet.close();
   }
 }); }
 
