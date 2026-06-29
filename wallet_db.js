@@ -10,7 +10,7 @@ import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, esleep, assert, rpc_websocket, rpc_sock,
   _try, version as util_version, date_time, str,
 } from 'lif-kernel/util.js';
-import {lifnet_online, lifnet_connect, rg_id_get} from 'lif-kernel/lifnet';
+import {lifnet_online, lifnet_connect, lifnet_listen} from 'lif-kernel/lifnet';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;
@@ -1017,7 +1017,6 @@ export function mine_instant_pool({wallet, reward_share, target}){
   this.on('cancel', ()=>console.log('mine_instant_pool canceled'));
   const {netconf} = wallet;
   const {pow} = netconf;
-  const lifnet = yield lifnet_online();
   const _this = this;
   const _err = err=>{
     err = ''+err;
@@ -1066,7 +1065,10 @@ export function mine_instant_pool({wallet, reward_share, target}){
     _status('starting mining pool');
     console.log('starting mining pool', template.header);
     do_update();
-    lifnet.listen('mine_instant', ({msg, sock})=>{
+    lifnet_listen({topic: 'mine_instant',
+      data: {reward: pay_reward, fee, target}},
+      ({msg, sock})=>
+    {
       console.log('client connected', msg);
       // do here the pool mining
       sock.method('mine_instant_get_template', ({addr})=>{
@@ -1170,8 +1172,6 @@ export function mine_instant_pool({wallet, reward_share, target}){
       return {result: {tx: tx.tx.toHex(), txid: tx.tx.getId(),
         reward: pay_reward-fee, fee, addr: addr}};
     }); }
-    let ret = yield lifnet.topic_pub('mine_instant',
-      {reward: pay_reward, fee, target});
     while (1){
       yield esleep(1000);
       do_update();
@@ -1179,8 +1179,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
   } catch(err){ CEL(err);
     return {err: ''+err};
   } finally {
-    yield lifnet.topic_unpub('mine_instant');
-    lifnet.close();
+    yield lifnet_listen('mine_instant');
   }
 }); }
 
