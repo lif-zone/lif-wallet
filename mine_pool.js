@@ -63,6 +63,7 @@ export function mine_instant({netconf, saddr, target}){
     {rg_block: rg=>rg.mine_instant?.cheat});
   if (error)
     return _err(error);
+  sock.on('close', ()=>this.return(_err('disconnect')));
   rg.mine_instant ||= {template: 0, mined: 0, cheat: 0, success: 0};
   _status('getting block template');
   let template = yield sock.call('mine_instant_get_template', {addr: saddr});
@@ -184,7 +185,8 @@ export function mine_instant_pool({wallet, reward_share, target}){
     _status('starting mining pool');
     console.log('starting mining pool', template.header);
     do_update();
-    lifnet_listen({topic: 'mine_instant',
+    this.on('finally', ()=>listen_mine_instant.close());
+    let listen_mine_instant = lifnet_listen({topic: 'mine_instant',
       data: {reward: pay_reward, fee, target}},
       ({msg, sock})=>
     {
@@ -297,8 +299,6 @@ export function mine_instant_pool({wallet, reward_share, target}){
     }
   } catch(err){ CEL(err);
     return {err: ''+err};
-  } finally {
-    yield lifnet_listen('mine_instant');
   }
 }); }
 
