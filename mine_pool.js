@@ -1,4 +1,4 @@
-import {_try, date_time, CEL, ewait, esleep} from 'lif-kernel/util.js';
+import {_try, date_time, CEL} from 'lif-kernel/util.js';
 import etask from 'lif-kernel/etask.js';
 import {lifnet_online, lifnet_connect, lifnet_listen} from 'lif-kernel/lifnet';
 import {_el, buf_from_hex, buf_to_hex} from './wallet_db.js';
@@ -292,7 +292,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
         reward: pay_reward-fee, fee, addr: addr}};
     }); }
     while (1){
-      yield esleep(1000);
+      yield etask.sleep(1000);
       do_update();
     }
   } catch(err){ CEL(err);
