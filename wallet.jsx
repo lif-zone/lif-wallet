@@ -15,9 +15,9 @@ import {settings_get, settings_save, settings_cs_fetch,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
   cache_clear, wallet_bal, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
-  mine_solo, mine_instant, mine_instant_pool,
 } from './wallet_db.js';
 import {mine_stats_calc} from './mine.js';
+import {mine_solo, mine_instant, mine_instant_pool} from './mine_pool.js';
 
 await wallet_db_init();
 const settings = settings_get();
