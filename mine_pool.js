@@ -62,7 +62,7 @@ export function mine_instant({netconf, saddr, target}){
   let {rg, sock, error} = yield lifnet_connect('mine_instant',
     {rg_block: rg=>rg.mine_instant?.cheat});
   if (error)
-    return _err(error);
+    return _err('no mining servers online - try Solo mining ('+error+')');
   sock.on('close', ()=>this.return(_err('disconnect')));
   rg.mine_instant ||= {template: 0, mined: 0, cheat: 0, success: 0};
   _status('getting block template');
