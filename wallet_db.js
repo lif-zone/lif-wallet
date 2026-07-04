@@ -61,8 +61,8 @@ const netconf_def = {
     symbol: 'BTC',
     network: bitcoin.networks.bitcoin,
     electrum: 'lif:net/bitcoin/electrum',
-    //electrum: 'wss://electrumx.nimiq.com:443/electrumx', // restricted from localhost:5000
     //electrum: 'wss://bitcoinserver.nl:50004', // unrestricted
+    //electrum: 'wss://electrumx.nimiq.com:443/electrumx', // restricted from localhost:5000
     //electrum: 'wss://electrum.blockstream.info:700', // does not work
     //electrum: 'tcp:electrum1.bluewallet.io:50001', // untested
     //electrum: 'ssl:electrum1.bluewallet.io:443', // untested
