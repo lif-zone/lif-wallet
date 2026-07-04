@@ -45,8 +45,9 @@ const netconf_def = {
     name: 'Lifcoin', // Life Chai
     symbol: 'LIF',
     network: networks_lif,
-    electrum: '/.lif.net/electrum',
-    //electrum: 'lif:net/lifcoin/electrum',
+    electrum: 'lif:net/lifcoin/electrum',
+    //electrum: '/.lif.net/electrum',
+    //electrum: '/.lif.net/electrum-proxy',
     explorer_tx: 'http://localhost:5000/tx/',
     coin_type: 1842,
     fee_def: 5000000, // 1MB = 50LIF
@@ -62,7 +63,9 @@ const netconf_def = {
     electrum: 'lif:net/bitcoin/electrum',
     //electrum: 'wss://electrumx.nimiq.com:443/electrumx', // restricted from localhost:5000
     //electrum: 'wss://bitcoinserver.nl:50004', // unrestricted
-    // electrum: 'wss://electrum.blockstream.info:700', // does not work
+    //electrum: 'wss://electrum.blockstream.info:700', // does not work
+    //electrum: 'tcp:electrum1.bluewallet.io:50001', // untested
+    //electrum: 'ssl:electrum1.bluewallet.io:443', // untested
     explorer_tx: 'https://mempool.space/tx/',
     coin_type: 0,
     fee_def: 1000, // 1MB = 0.01BTC
