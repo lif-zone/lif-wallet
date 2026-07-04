@@ -836,8 +836,10 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
           <p style={{color: '#aaa'}}>Loading…</p>
         ) : !transactions.length ? (
           <div>
-            <p>No transactions yet.</p>
-            <button onClick={()=>onMine()}>Mine and earn $LIF</button>
+            <p>No transactions in wallet.</p>
+            {netconf.lif_kv &&
+              <button onClick={()=>onMine()}>Mine and earn $LIF</button>
+            }
           </div>
         ) : (
           <ul style={{marginTop: 8, paddingLeft: 0, listStyle: 'none'}}>
