@@ -39,6 +39,17 @@ let networks_lif = {
   wif: 0x80,
   messagePrefix: '\x18Bitcoin Signed Message:\n',
 };
+let networks_liftest = {
+  bech32: 'liftest',
+  bip32: {
+    public: 0x019da4e0,
+    private: 0x019da380,
+  },
+  pubKeyHash: 0x00,
+  scriptHash: 0x05,
+  wif: 0x80,
+  messagePrefix: '\x18Bitcoin Signed Message:\n',
+};
 
 const netconf_def = {
   lif: {
@@ -50,6 +61,20 @@ const netconf_def = {
     //electrum: '/.lif.net/electrum-proxy',
     explorer_tx: 'http://localhost:5000/tx/',
     coin_type: 1842,
+    fee_def: 5000000, // 1MB = 50LIF
+    lif_kv: true,
+    pow: 'sha256lif',
+    pow_hps: 50000, // Hash/Sec: android ~60,000 hps, Desktop ~100,000 hps
+    usd: 1,
+  },
+  liftest: {
+    name: 'Lifcoin Testnet',
+    symbol: 'tLIF',
+    network: networks_liftest,
+    electrum: 'lif:net/lifcoin_test/electrum',
+    //electrum: '/.lif.net/electrum_test',
+    explorer_tx: 'http://localhost:5000/tx/',
+    coin_type: 1,
     fee_def: 5000000, // 1MB = 50LIF
     lif_kv: true,
     pow: 'sha256lif',
