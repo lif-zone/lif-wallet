@@ -200,67 +200,74 @@ export function lif_server_set(val){
 }
 
 const g_electrum = {};
+const RETRY_MS = 1000;
 class electrum_rpc {
   url;
   rpc;
   error;
-  constructor(netconf){
-    this.netconf = netconf;
-    let url = netconf.electrum;
+  status = 'offline';
+  wait;
+  last;
+  constructor({url}){
+    this.url = url;
     if (url[0]=='/')
       url = ws_origin()+url;
     this.url = url;
   }
   async connect(){
-    let conn, rpc;
-    if (conn = g_electrum[this.url]){
-      await conn.wait;
-      rpc = conn.rpc;
-      if (rpc && !rpc.error)
-        return conn.rpc;
-      rpc?.close();
-    }
-    conn = g_electrum[this.url] = {rpc: null, wait: ewait()};
+    const set_error = (error)=>{
+      console.error('rpc_connect', error);
+      this.error = error;
+      if (this.rpc){
+        this.close();
+        this.rpc.close();
+        this.rpc = null;
+      }
+      this.wait.return({error});
+      this.wait = null
+      return {error};
+    };
+    if (this.status=='online')
+      return this.rpc;
+    if (this.wait)
+      return await this.wait;
+    if (Date.now()-(this.last||0)<RETRY_MS)
+      return {error: 'connect wait retry: '+this.error};
+    this.wait = ewait();
+    this.last = Date.now();
     try {
       let v;
       if (v=str.starts(this.url, 'lif:net/')){
         let {rg, sock, error} = await lifnet_connect(
           v.rest, null, {jsonrpc: '2.0', D: 1});
-        rpc = conn.rpc = sock;
+        this.rpc = sock;
         if (error)
-          throw error;
+          return set_error(error);
       } else {
-        rpc = conn.rpc = new rpc_websocket({jsonrpc: '2.0', D: 1});
-        await rpc.connect({url: this.url});
+        this.rpc = new rpc_websocket({jsonrpc: '2.0', D: 1});
+        await this.rpc.connect({url: this.url});
       }
-    } catch(e){
-      console.error('rpc_connect', e);
-      rpc?.close();
-      conn.wait.throw(e);
-      throw e; // return
+    } catch(error){
+      return set_error('rpc_connect: '+error);
     }
     try {
-      this.server_version = await rpc.T_call('server.version',
+      this.server_version = await this.rpc.T_call('server.version',
         ['lif-coin-wallet', '1.4']);
-      this.server_banner = await rpc.T_call('server.banner');
+      this.server_banner = await this.rpc.T_call('server.banner');
     } catch(e){
-      console.error('server version rpc', e);
-      this.close();
-      conn.wait.throw(e);
-      throw e; // XXX return
+      return set_error('server version rpc: '+e);
     }
-    conn.wait.return();
-    return rpc;
+    return this.wait.return(this.rpc);
   }
   async T_call(method, ...params){
-    let rpc = await this.connect();
-    return await rpc.T_call(method, params);
+    let ret = await this.connect();
+    if (ret.error)
+      return ret;
+    return await this.rpc.T_call(method, params);
   }
   close(){
-    const conn = g_electrum[this.url];
-    if (conn?.rpc)
-      conn.rpc.close();
-    delete g_electrum[this.url];
+    if (this.rpc)
+      this.rpc.close();
   }
   async tx_get(tx_hash, verb){
     return await this.T_call('blockchain.transaction.get', tx_hash, verb);
@@ -295,7 +302,9 @@ class electrum_rpc {
 }
 
 export function _el(netconf){
-  return new electrum_rpc(netconf);
+  let url = netconf.electrum;
+  let el = g_electrum[url] ||= new electrum_rpc({url});
+  return el;
 }
 
 // id → single wallet object instance (mutated in place)
