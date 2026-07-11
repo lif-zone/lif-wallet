@@ -249,7 +249,7 @@ class electrum_rpc {
         this.rpc = null;
       }
       this.wait.return({error});
-      this.wait = null
+      this.wait = null;
       return {error};
     };
     if (this.status=='online')

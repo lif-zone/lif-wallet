@@ -801,7 +801,7 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
         {netconf.lif_kv && settings.ls.advanced && <button onClick={onKvAddRaw}>Get Key/Val</button>}
         {netconf.lif_kv && <button onClick={onMine}>Mine</button>}
         {netconf.lif_kv && settings.ls.advanced && balance>=50*1e8 && <button onClick={onMinePool}>Mining pool</button>}
-        {settings.ls.devtools && transactions.some(tx=>!tx.timestamp) && (
+        {netconf.lif_kv && settings.ls.devtools && transactions.some(tx=>!tx.timestamp) && (
           <button onClick={async()=>{
             try {
               let res = await fetch(lif_server_get()+'/mine', {method: 'POST'});
