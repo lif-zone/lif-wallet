@@ -1475,11 +1475,13 @@ function Coin_screen({wallet, coin}){
         break;
     }
   }
-  let privateKey = null;
-  if (settings.ls.advanced && addrInfo){
+  let publicKey = null, privateKey = null;
+  if (addrInfo){
     const root = hd_root(ls.mnemonic, netconf.network, ls.passphrase||'');
     const info = hd_addr(netconf.network, root, accountPath, addrInfo.chain, addrInfo.index);
-    privateKey = buf_to_hex(info.keyPair.privateKey);
+    publicKey = buf_to_hex(info.keyPair.publicKey);
+    if (settings.ls.advanced)
+      privateKey = buf_to_hex(info.keyPair.privateKey);
   }
   const Row = ({label, val})=>(
     <tr>
@@ -1503,6 +1505,8 @@ function Coin_screen({wallet, coin}){
           </>}
           {isSpent && !spendingTx && <Row label="Spending TX" val="(not in wallet history)" />}
           {fullPath && <Row label="Derivation path" val={fullPath} />}
+          {address && <Row label="Address" val={address} />}
+          {publicKey && <Row label="Public key" val={publicKey} />}
           {privateKey && <Row label="Private key" val={privateKey} />}
         </tbody>
       </table>
