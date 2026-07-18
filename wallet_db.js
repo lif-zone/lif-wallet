@@ -678,14 +678,14 @@ export async function el_estimatefee(netconf){
   return fallback;
 }
 
-function kv_script(key, val){
-  return bitcoin.script.compile([
-    bitcoin.opcodes.OP_RETURN, Buffer.from('lif'),
-    Buffer.from('key'),
-    Buffer.from(key),
-    Buffer.from('val'),
-    Buffer.from(val),
-  ]);
+function kv_script(key, val, valbin){
+  let ops = [];
+  ops.push(bitcoin.opcodes.op_return, buffer.from('lif'));
+  ops.push(buffer.from('key'), buffer.from(key));
+  ops.push(buffer.from('val'), buffer.from(val));
+  if (valbin)
+    ops.push(buffer.from('valbin'), buffer.from(valbin));
+  return bitcoin.script.compile(ops);
 }
 
 export async function tx_broadcast(netconf, tx){
