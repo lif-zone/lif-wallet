@@ -15,6 +15,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
   cache_clear, wallet_bal, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
+  buf_to_hex,
 } from './wallet_db.js';
 import {mine_stats_calc} from './mine.js';
 import {mine_solo, mine_instant, mine_instant_pool} from './mine_pool.js';
@@ -456,9 +457,6 @@ function BrightWallet(){
           wallet={wallet}
           tx={selectedTxData.tx}
           walletAddrs={selectedTxData.walletAddrs}
-          allAddrs={selectedTxData.allAddrs}
-          utxos={selectedTxData.utxos}
-          transactions={selectedTxData.transactions}
           onViewCoin={(coin)=>{ setSelectedCoinData(coin); setScreen('coin_info'); }}
         />
       )}
@@ -869,8 +867,7 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
                 : [];
               return (
                 <li key={i}
-                  onClick={()=>onSelectTx({tx, netconf, walletAddrs: addrSet,
-                    allAddrs, utxos: wallet.c.utxos||[], transactions})}
+                  onClick={()=>onSelectTx({tx, netconf, walletAddrs: addrSet})}
                   style={{fontSize: 13, marginTop: 4, cursor: 'pointer', padding: '4px 0',
                     borderBottom: '1px solid #eee'}}
                 >
@@ -1454,9 +1451,12 @@ function Kv_info_screen({kv_d, onViewTx, onTransfer, onEdit}){
 
 // Coin Detail Screen
 function Coin_screen({wallet, coin}){
-  const {txHash, voutIndex, value, address, allAddrs, utxos, transactions} = coin;
+  const {txHash, voutIndex, value, address} = coin;
   const {ls, netconf} = wallet;
-  const addrInfo = (allAddrs||[]).find(a=>a.address==address);
+  const allAddrs = wallet.c.addrs||[];
+  const utxos = wallet.c.utxos||[];
+  const transactions = wallet.c.transactions||[];
+  const addrInfo = allAddrs.find(a=>a.address==address);
   const accountPath = ls.derivPath || hd_path_def(netconf);
   const fullPath = addrInfo ? `${accountPath}/${addrInfo.chain}/${addrInfo.index}` : null;
   const isSpent = !(utxos||[]).some(u=>u.tx_hash==txHash && u.tx_pos==voutIndex);
@@ -1479,7 +1479,7 @@ function Coin_screen({wallet, coin}){
   if (settings.ls.advanced && addrInfo){
     const root = hd_root(ls.mnemonic, netconf.network, ls.passphrase||'');
     const info = hd_addr(netconf.network, root, accountPath, addrInfo.chain, addrInfo.index);
-    privateKey = info.keyPair.privateKey.toString('hex');
+    privateKey = buf_to_hex(info.keyPair.privateKey);
   }
   const Row = ({label, val})=>(
     <tr>
@@ -1511,7 +1511,7 @@ function Coin_screen({wallet, coin}){
 }
 
 // Tx Detail Screen
-function Tx_info_screen({tx, wallet, walletAddrs, allAddrs, utxos, transactions, onViewCoin}){
+function Tx_info_screen({tx, wallet, walletAddrs, onViewCoin}){
   const date = tx.timestamp ? new Date(tx.timestamp*1000).toLocaleString()
     : null;
   const positive = tx.amount>=0;
@@ -1577,7 +1577,7 @@ function Tx_info_screen({tx, wallet, walletAddrs, allAddrs, utxos, transactions,
                   <span
                     style={{cursor: 'pointer', textDecoration: 'underline', marginLeft: 4}}
                     onClick={()=>onViewCoin?.({txHash: tx.tx_hash, voutIndex: i,
-                      value, address: addr, allAddrs, utxos, transactions})}
+                      value, address: addr})}
                   > ← yours</span>
                 )}
               </div>

@@ -22,6 +22,7 @@ export function buf_from_hex(b){
   return Buffer.from(b, 'hex');
 }
 export function buf_to_hex(b){
+  b = Buffer.from(b);
   return b.toString('hex');
 }
 const HD_SCAN_GAP = 20;
@@ -665,7 +666,7 @@ export async function hd_scan(netconf, root, accountPath, chain){
 export function addr_sh(saddr, network){
   const script = bitcoin.address.toOutputScript(saddr, network);
   const hash = sha256(script);
-  return buf_to_hex(Buffer.from(hash.reverse()));
+  return buf_to_hex(hash.reverse());
 }
 
 export async function el_estimatefee(netconf){
