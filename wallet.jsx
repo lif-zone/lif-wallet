@@ -11,7 +11,7 @@ const {split_ws} = str;
 import {settings_get, settings_save, settings_cs_fetch,
   wallet_db_init, wallet_fetch,
   wallet_add, wallet_del, wallet_update, wallets_get, wallet_get,
-  hd_wallet, hd_path_def, addr_valid,
+  hd_wallet, hd_path_def, hd_root, hd_addr, addr_valid,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
   cache_clear, wallet_bal, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
@@ -287,6 +287,7 @@ function BrightWallet(){
   const [getDomain, setGetDomain] = useState(null);
   const [selectedTxData, setSelectedTxData] = useState(null);
   const [selectedKeyData, setSelectedKeyData] = useState(null);
+  const [selectedCoinData, setSelectedCoinData] = useState(null);
   const [cacheVer, setCacheVer] = useState(0);
   const [refreshTick, setRefreshTick] = useState(0);
   const [walletLoading, setWalletLoading] = useState(false);
@@ -324,6 +325,8 @@ function BrightWallet(){
   const goBack = ()=>{
     if (screen=='kv_send' || screen=='kv_edit')
       setScreen('kv_info');
+    else if (screen=='coin_info')
+      setScreen('tx_info');
     else if (screen=='tx_info' || screen=='kv_info')
       setScreen('wallet_info');
     else if (screen=='wallet_send' || screen=='wallet_receive' ||
@@ -453,6 +456,16 @@ function BrightWallet(){
           wallet={wallet}
           tx={selectedTxData.tx}
           walletAddrs={selectedTxData.walletAddrs}
+          allAddrs={selectedTxData.allAddrs}
+          utxos={selectedTxData.utxos}
+          transactions={selectedTxData.transactions}
+          onViewCoin={(coin)=>{ setSelectedCoinData(coin); setScreen('coin_info'); }}
+        />
+      )}
+      {screen=='coin_info' && selectedCoinData && wallet && (
+        <Coin_screen
+          wallet={wallet}
+          coin={selectedCoinData}
         />
       )}
       {screen=='kv_info' && selectedKeyData && wallet && (
@@ -856,7 +869,8 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
                 : [];
               return (
                 <li key={i}
-                  onClick={()=>onSelectTx({tx, netconf, walletAddrs: addrSet})}
+                  onClick={()=>onSelectTx({tx, netconf, walletAddrs: addrSet,
+                    allAddrs, utxos: wallet.c.utxos||[], transactions})}
                   style={{fontSize: 13, marginTop: 4, cursor: 'pointer', padding: '4px 0',
                     borderBottom: '1px solid #eee'}}
                 >
@@ -1438,8 +1452,66 @@ function Kv_info_screen({kv_d, onViewTx, onTransfer, onEdit}){
   );
 }
 
+// Coin Detail Screen
+function Coin_screen({wallet, coin}){
+  const {txHash, voutIndex, value, address, allAddrs, utxos, transactions} = coin;
+  const {ls, netconf} = wallet;
+  const addrInfo = (allAddrs||[]).find(a=>a.address==address);
+  const accountPath = ls.derivPath || hd_path_def(netconf);
+  const fullPath = addrInfo ? `${accountPath}/${addrInfo.chain}/${addrInfo.index}` : null;
+  const isSpent = !(utxos||[]).some(u=>u.tx_hash==txHash && u.tx_pos==voutIndex);
+  let spendingTx = null, spendingInputIdx = null;
+  if (isSpent){
+    for (const stx of (transactions||[])){
+      const vin = stx._vtx?.vin||[];
+      for (let i=0; i<vin.length; i++){
+        if (vin[i].txid==txHash && vin[i].vout==voutIndex){
+          spendingTx = stx.tx_hash;
+          spendingInputIdx = i;
+          break;
+        }
+      }
+      if (spendingTx)
+        break;
+    }
+  }
+  let privateKey = null;
+  if (settings.ls.advanced && addrInfo){
+    const root = hd_root(ls.mnemonic, netconf.network, ls.passphrase||'');
+    const info = hd_addr(netconf.network, root, accountPath, addrInfo.chain, addrInfo.index);
+    privateKey = info.keyPair.privateKey.toString('hex');
+  }
+  const Row = ({label, val})=>(
+    <tr>
+      <td style={{color: '#888', paddingRight: 12, verticalAlign: 'top',
+        whiteSpace: 'nowrap', paddingBottom: 6}}>{label}</td>
+      <td style={{fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all'}}>{val}</td>
+    </tr>
+  );
+  return (
+    <div style={{padding: 16}}>
+      <h3 style={{marginTop: 0}}>Coin Details</h3>
+      <table style={{borderCollapse: 'collapse', width: '100%'}}>
+        <tbody>
+          <Row label="TX" val={txHash} />
+          <Row label="Output index" val={voutIndex} />
+          <Row label="Value" val={<Amount sat={value} symbol={netconf.symbol} />} />
+          <Row label="Status" val={isSpent ? 'Spent' : <span style={{color: 'green'}}>Unspent</span>} />
+          {isSpent && spendingTx && <>
+            <Row label="Spending TX" val={spendingTx} />
+            <Row label="Spending input" val={spendingInputIdx} />
+          </>}
+          {isSpent && !spendingTx && <Row label="Spending TX" val="(not in wallet history)" />}
+          {fullPath && <Row label="Derivation path" val={fullPath} />}
+          {privateKey && <Row label="Private key" val={privateKey} />}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // Tx Detail Screen
-function Tx_info_screen({tx, wallet, walletAddrs}){
+function Tx_info_screen({tx, wallet, walletAddrs, allAddrs, utxos, transactions, onViewCoin}){
   const date = tx.timestamp ? new Date(tx.timestamp*1000).toLocaleString()
     : null;
   const positive = tx.amount>=0;
@@ -1501,7 +1573,13 @@ function Tx_info_screen({tx, wallet, walletAddrs}){
           return (
             <div key={i} style={{marginTop: 3}}>
               <div style={{fontFamily: 'monospace', fontSize: 12, color}}>
-                {addr} <Amount sat={value} symbol={symbol} signed />{ours && ' ← yours'}
+                {addr} <Amount sat={value} symbol={symbol} signed />{ours && (
+                  <span
+                    style={{cursor: 'pointer', textDecoration: 'underline', marginLeft: 4}}
+                    onClick={()=>onViewCoin?.({txHash: tx.tx_hash, voutIndex: i,
+                      value, address: addr, allAddrs, utxos, transactions})}
+                  > ← yours</span>
+                )}
               </div>
               {(vout.lif_kv||[]).map((kv, j)=>(
                 <Kv_line key={j} kv_key={kv.key} kv_val={json(kv.val)} color={color} fontSize={11} mt={2} />
