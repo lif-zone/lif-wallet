@@ -1491,3 +1491,10 @@ Fixed by:
 2. Checking DOM (found "LIF Wallet") BEFORE checking hang timer - so a loaded page always succeeds
 
 Both tests now pass locally (18s).
+---
+USER:
+complete btc_create_kv() in gen_genesis.js - BTC tx with change output and KV OP_RETURN
+
+CLAUDE:
+Implemented btc_create_kv() using lif-coin MTX/KeyRing/Coin. Added Coin and Address imports. KeyRing with witness:true for P2WPKH. Input coin script from keyRing.getScript(). Change output parsed with explicit Networks.main to avoid network confusion. OP_RETURN kv output second. mtx.sign(keyRing) for witness signing. Returns {hex} ready for mempool.space broadcast.
+---
