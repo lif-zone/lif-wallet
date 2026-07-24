@@ -39,8 +39,7 @@
     "spa": true
   },
   "scripts": {
-    "x serve": "node node_modules/lif-kernel/server.js -p 4001",
-    "serve": "node ./server.js -p 4001",
+    "serve": "node node_modules/lif-kernel/serve.js -p 4001",
     "lint": "eslint",
     "test": "mocha --reporter spec test/*.js",
     "test-ci": "mocha --reporter mocha-multi-reporters --reporter-options configFile=test/mocharc.json test/*.js"
