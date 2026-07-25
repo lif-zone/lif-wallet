@@ -244,11 +244,7 @@ class electrum_rpc {
     const set_error = (error)=>{
       console.error('rpc_connect', error);
       this.error = error;
-      if (this.rpc){
-        this.close();
-        this.rpc.close();
-        this.rpc = null;
-      }
+      this.close();
       this.wait.return({error});
       this.wait = null;
       return {error};
@@ -263,6 +259,7 @@ class electrum_rpc {
     this.last = Date.now();
     try {
       let v;
+      this.status = 'connecting';
       if (v=str.starts(this.url, 'lif:net/')){
         let {rg, sock, error} = await lifnet_connect(
           v.rest, null, {jsonrpc: '2.0', D: 1});
@@ -273,6 +270,7 @@ class electrum_rpc {
         this.rpc = new rpc_websocket({jsonrpc: '2.0', D: 1});
         await this.rpc.connect({url: this.url});
       }
+      this.rpc.on('close', ()=>set_error('close'));
     } catch(error){
       return set_error('rpc_connect: '+error);
     }
@@ -283,6 +281,7 @@ class electrum_rpc {
     } catch(e){
       return set_error('server version rpc: '+e);
     }
+    this.status = 'online';
     return this.wait.return(this.rpc);
   }
   async T_call(method, ...params){
@@ -294,6 +293,8 @@ class electrum_rpc {
   close(){
     if (this.rpc)
       this.rpc.close();
+    this.rpc = null;
+    this.status = 'closed';
   }
   async tx_get(tx_hash, verb){
     return await this.T_call('blockchain.transaction.get', tx_hash, verb);
