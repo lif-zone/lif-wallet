@@ -44,6 +44,29 @@ function header_match(a, b){
   return buf_to_hex(_a)==buf_to_hex(_b);
 }
 
+function mine_slave_listen(){
+  return lifnet_listen({topic: 'mine_slave'}, ({msg, sock})=>{
+    let {header: header_hex, target, min, max, pow} = msg.params;
+    if (pow!='sha256lif')
+      return {error: 'invalid pow'};
+    if (!header_hex)
+      return {error: 'no header'};
+    const header = buf_from_hex(header_hex);
+    let et = etask(function*(){
+      let mine_et = mine_steps({pow, header, target, min, max});
+      mine_et.on('update', up=>sock.notify('update', up));
+      let ret = yield mine_et;
+      if (ret.found){
+        let ret = {header: buf_to_hex(ret.header)};
+        console.log('success! found new mined block:', ret.header);
+        sock.notify('found', ret);
+      } else
+        sock.notify('not_found', {total_h: ret.total_h});
+    });
+    sock.on('close', ()=>et.cancel());
+  });
+}
+
 export function mine_instant({netconf, saddr, target}){
   return etask(function*mine_instant()
 {
@@ -131,12 +154,17 @@ export function mine_instant({netconf, saddr, target}){
 }); };
 
 let STALE_OFFER = 60; // 1 minute
+let slave_test_enable = 0;
 export function mine_instant_pool({wallet, reward_share, target}){
   return etask(function*mine_instant_pool()
 {
   this.on('cancel', ()=>console.log('mine_instant_pool canceled'));
   const {netconf} = wallet;
   const {pow} = netconf;
+  if (slave_test_enable){
+    const slave_listen = mine_slave_listen(netconf);
+    this.on('finally', ()=>slave_listen.close());
+  }
   const _this = this;
   const _err = err=>{
     err = ''+err;
