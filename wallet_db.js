@@ -231,7 +231,7 @@ class electrum_rpc {
   url;
   rpc;
   error;
-  status = 'offline';
+  state = 'offline';
   wait;
   last;
   constructor({url}){
@@ -249,7 +249,7 @@ class electrum_rpc {
       this.wait = null;
       return {error};
     };
-    if (this.status=='online')
+    if (this.state=='online')
       return this.rpc;
     if (this.wait)
       return await this.wait;
@@ -259,7 +259,7 @@ class electrum_rpc {
     this.last = Date.now();
     try {
       let v;
-      this.status = 'connecting';
+      this.state = 'connect';
       if (v=str.starts(this.url, 'lif:net/')){
         let {rg, sock, error} = await lifnet_connect(
           v.rest, null, {jsonrpc: '2.0', D: 1});
@@ -281,7 +281,7 @@ class electrum_rpc {
     } catch(e){
       return set_error('server version rpc: '+e);
     }
-    this.status = 'online';
+    this.state = 'online';
     return this.wait.return(this.rpc);
   }
   async T_call(method, ...params){
@@ -294,7 +294,7 @@ class electrum_rpc {
     if (this.rpc)
       this.rpc.close();
     this.rpc = null;
-    this.status = 'closed';
+    this.state = 'close';
   }
   async tx_get(tx_hash, verb){
     return await this.T_call('blockchain.transaction.get', tx_hash, verb);

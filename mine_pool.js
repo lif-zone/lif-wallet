@@ -29,6 +29,7 @@ export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   console.log('submitting new block');
   mine_ret.header = buf_to_hex(mine_ret.header);
   let ret = yield el.mine_submit_header(mine_ret.header);
+  console.log('mine_submit res', ret);
   if (!ret?.height)
     return {err: 'failed submitting new block', ...(ret||{})};
   console.log('success! new block height '+ret.height);
@@ -276,7 +277,9 @@ export function mine_instant_pool({wallet, reward_share, target}){
       if (ret){
         console.log('seems like got a winning block!', h);
         let ret = yield el.mine_submit_header(h);
-        if (ret?.height){
+        if (!ret?.height){
+          console.error('failed submitting winning block', ret);
+        } else {
           console.log('winning block submitted successfully!');
           win_n++;
           win_v += reward;
