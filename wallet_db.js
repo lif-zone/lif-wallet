@@ -10,12 +10,14 @@ import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, assert, rpc_websocket, rpc_sock,
   _try, version as util_version, date_time, str,
 } from 'lif-kernel/util.js';
-import {lifnet_online, lifnet_connect, lifnet_listen} from 'lif-kernel/lifnet';
+import {lifnet_online, lifnet_connect, lifnet_listen, lifnet_set,
+} from 'lif-kernel/lifnet';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;
 import etask from 'lif-kernel/etask.js';
 
+lifnet_set({client_name: 'wallet'});
 export function buf_from_hex(b){
   if (Buffer.isBuffer(b))
     return Buffer.from(b);
