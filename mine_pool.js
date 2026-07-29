@@ -46,7 +46,32 @@ function header_match(a, b){
 }
 
 function mine_slave_listen(){
-  return lifnet_listen({topic: 'mine_slave'}, ({msg, sock})=>{
+  return lifnet_listen({topic: 'mine_slave'}, async({msg, sock})=>{
+    if (0){
+      // not in use
+      let is_running = false;
+      let progress = 0;
+      let slave_be;
+      let et;
+      slave_be = await mine_slave.init({
+        onProgress(step){
+          progress += step;
+          et.emit('update', {progress});
+        },
+        onComplete({nonce, time, header}){
+          if (!is_running)
+            return;
+          stop();
+          console.log('FOUND! nonce '+nonce+' time '+time+' header '+header);
+          et.return({found: true, header, nonce, time});
+        },
+        onError(error){
+          console.error(error);
+          return {error};
+        },
+      });
+      let mine_slave = await import('./mine_slave.js');
+    }
     let {header: header_hex, target, min, max, pow} = msg.params;
     if (pow!='sha256lif')
       return {error: 'invalid pow'};
