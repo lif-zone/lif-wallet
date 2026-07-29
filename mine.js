@@ -180,6 +180,7 @@ export function mine_steps({pow, header, time_local,
   let time_last = time_local;
   let _header = Buffer.from(header);
   target ||= header_get_target(header);
+  // can spawn multiple mine_worker up to navigator.hardwareConcurrency
   for (;;){
     let step_h = Math.max(Math.floor(hps*slice_ms/1000), 1000);
     this.emit('update', {hps, total_h, target, mine_h});
