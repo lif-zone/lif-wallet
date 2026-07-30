@@ -1,4 +1,4 @@
-import {_try, date_time, CEL} from 'lif-kernel/util.js';
+import {_try, date_time, CEL, ewait} from 'lif-kernel/util.js';
 import etask from 'lif-kernel/etask.js';
 import {lifnet_online, lifnet_connect, lifnet_listen} from 'lif-kernel/lifnet';
 import {_el, buf_from_hex, buf_to_hex} from './wallet_db.js';
@@ -13,14 +13,15 @@ import {tx_out_find, tx_broadcast, tx_send} from './wallet_db.js';
 export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   return etask(function*()
 {
-  this.on('cancel', ()=>console.log('mine_solo canceled'));
   const el = _el(netconf);
   let template = yield el.mine_get_template(saddr);
   const header = buf_from_hex(template.header);
   console.log('starting mining', template.header);
   let reward = template.reward;
   let opt = {pow: netconf.pow, header, min, max, target};
-  let mine_et = steps ? mine_steps(opt) : mine_worker_call(opt);
+  let mine_et = steps && slave_test_enable ? mine_slave(opt) :
+    steps ? mine_steps(opt) :
+    mine_worker_call(opt);
   mine_et.on('update', up=>this.emit('update', {...up, reward}));
   let mine_ret = yield mine_et;
   console.log('mine_res', mine_ret);
@@ -45,59 +46,53 @@ function header_match(a, b){
   return buf_to_hex(_a)==buf_to_hex(_b);
 }
 
-function mine_slave_listen(){
-  return lifnet_listen({topic: 'mine_slave'}, async({msg, sock})=>{
-    if (0){
-      // not in use
-      let is_running = false;
-      let progress = 0;
-      let slave_be;
-      let et;
-      slave_be = await mine_slave.init({
-        onProgress(step){
-          progress += step;
-          et.emit('update', {progress});
-        },
-        onComplete({nonce, time, header}){
-          if (!is_running)
-            return;
-          stop();
-          console.log('FOUND! nonce '+nonce+' time '+time+' header '+header);
-          et.return({found: true, header, nonce, time});
-        },
-        onError(error){
-          console.error(error);
-          return {error};
-        },
-      });
-      let mine_slave = await import('./mine_slave.js');
-    }
+export function mine_slave_listen(){
+  return lifnet_listen({topic: 'lifcoin/mine_slave'}, ({msg, sock})=>{
     let {header: header_hex, target, min, max, pow} = msg.params;
     if (pow!='sha256lif')
       return {error: 'invalid pow'};
     if (!header_hex)
       return {error: 'no header'};
     const header = buf_from_hex(header_hex);
-    let et = etask(function*(){
+    let et = etask(function*(et){
+      et.on('finally', ()=>sock.close());
       let mine_et = mine_steps({pow, header, target, min, max});
       mine_et.on('update', up=>sock.notify('update', up));
       let ret = yield mine_et;
       if (!ret?.found){
-        sock.notify('not_found', {total_h: ret.total_h});
+        sock.notify('not_found', {total_h: ret?.total_h});
         return;
       }
-      let win = {header: buf_to_hex(ret.header)};
-      console.log('success! found new mined block:', win.header);
-      sock.notify('found', ret);
+      console.log('success! found new mined block:', buf_to_hex(ret.header));
+      sock.notify('found', {...ret, header: buf_to_hex(ret.header)});
     });
     sock.on('close', ()=>et.return());
   });
 }
 
+export function mine_slave({pow, header, min, max, target}){ return etask(function*(){
+  let {sock, error} = yield lifnet_connect('lifcoin/mine_slave',
+    {header: buf_to_hex(header), target, min, max, pow});
+  if (error)
+    return {found: false, error};
+  let done = ewait();
+  let res;
+  sock.method('update', up=>this.emit('update', up));
+  sock.method('found', ret=>{
+    res = {...ret, header: buf_from_hex(ret.header)};
+  });
+  sock.method('not_found', ret=>{
+    res = {found: false, ...ret};
+  });
+  sock.on('close', ()=>done.return(
+    res || {found: false, error: 'disconnected'}));
+  this.on('finally', ()=>sock.close());
+  return yield done;
+}); }
+
 export function mine_instant({netconf, saddr, target}){
   return etask(function*mine_instant()
 {
-  this.on('cancel', ()=>console.log('mine_instant canceled'));
   const _err = err=>{
     err = ''+err;
     this.emit('status', {err});
@@ -181,11 +176,10 @@ export function mine_instant({netconf, saddr, target}){
 }); };
 
 let STALE_OFFER = 60; // 1 minute
-let slave_test_enable = 0;
+let slave_test_enable = 1;
 export function mine_instant_pool({wallet, reward_share, target}){
   return etask(function*mine_instant_pool()
 {
-  this.on('cancel', ()=>console.log('mine_instant_pool canceled'));
   const {netconf} = wallet;
   const {pow} = netconf;
   if (slave_test_enable){
