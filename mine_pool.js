@@ -82,14 +82,15 @@ function mine_slave_listen(){
       let mine_et = mine_steps({pow, header, target, min, max});
       mine_et.on('update', up=>sock.notify('update', up));
       let ret = yield mine_et;
-      if (ret.found){
-        let ret = {header: buf_to_hex(ret.header)};
-        console.log('success! found new mined block:', ret.header);
-        sock.notify('found', ret);
-      } else
+      if (!ret?.found){
         sock.notify('not_found', {total_h: ret.total_h});
+        return;
+      }
+      let win = {header: buf_to_hex(ret.header)};
+      console.log('success! found new mined block:', win.header);
+      sock.notify('found', ret);
     });
-    sock.on('close', ()=>et.cancel());
+    sock.on('close', ()=>et.return());
   });
 }
 
