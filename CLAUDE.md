@@ -10,6 +10,7 @@ Do this silently. Never skip it. Never forget it.
 ## Project Structure
 - wallet.jsx — main React wallet UI (multi-wallet, HD BIP84, passphrase support)
 - prompt.txt — running session log of all prompts and responses
+  - file names in prompt: dont write /home/USER/dir/file.js, just dir/file.js
 - wallet_db.js — wallet/mining DB and etask helpers
 - mine.js — mining logic (mine_percent, mine_stats_calc, etc.)
 
