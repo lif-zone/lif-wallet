@@ -72,15 +72,13 @@ function mine_steps_alt({pow, header, target, min, max}){
       let {nonce, time, header: s_header, checksum, mask} = res;
       be.stop();
       console.log('mask found! nonce '+nonce+' time '+time);
-      console.log('header      '+s_header);
-      console.log('header orig '+orig_header);
+      console.log('header '+s_header);
       console.log('checksum '+checksum);
       console.log('nonce '+nonce.toString(16));
       let b_header = buf_from_hex(s_header);
       let _checksum = buf_to_hex(hash256_pow(pow, b_header));
-      console.log('real checksum '+_checksum);
       assert(checksum==_checksum,
-        'invalid checksum mismatch.\ncalc: '+_checksum+'\nfound: '+checksum);
+        'invalid checksum mismatch: calc '+_checksum+' got '+checksum);
       // do accurate comparison to target, not just simple bit-mask zero bits
       let ret = mine({pow, header: b_header, min: nonce, max: nonce+1, target});
       if (!ret){
@@ -94,7 +92,7 @@ function mine_steps_alt({pow, header, target, min, max}){
         return;
       }
       console.log('found approved win!');
-      et.return({found: true, header: s_header, nonce, time});
+      et.return({found: true, header: b_header, nonce, time});
     }); },
     onError(error){
       console.error(error);
@@ -241,7 +239,7 @@ export function mine_instant({netconf, saddr, target}){
 }); };
 
 let STALE_OFFER = 60; // 1 minute
-let slave_test_enable = ''; // alt remote slave
+let slave_test_enable = ''; // 'alt remote slave'
 export function mine_instant_pool({wallet, reward_share, target}){
   return etask(function*mine_instant_pool()
 {
