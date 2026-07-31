@@ -1,10 +1,10 @@
-import {_try, date_time, CEL, ewait} from 'lif-kernel/util.js';
+import {_try, date_time, CEL, ewait, assert} from 'lif-kernel/util.js';
 import etask from 'lif-kernel/etask.js';
 import {lifnet_online, lifnet_connect, lifnet_listen} from 'lif-kernel/lifnet';
 import {_el, buf_from_hex, buf_to_hex} from './wallet_db.js';
 import * as bitcoin from 'bitcoinjs-lib';
 import {mine, mine_worker_call, mine_steps,
-  target_from_nhash, target_to_nhash, target_to_compact,
+  hash256_pow, target_from_nhash, target_to_nhash, target_to_compact,
   header_get_target, header_get_time, header_set_time,
   header_get_nonce, header_set_nonce, target_from_compact,
 } from './mine.js';
@@ -19,7 +19,9 @@ export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   console.log('starting mining', template.header);
   let reward = template.reward;
   let opt = {pow: netconf.pow, header, min, max, target};
-  let mine_et = steps && slave_test_enable ? mine_slave(opt) :
+  let mine_et =
+    steps && slave_test_enable.includes('remote') ? mine_slave(opt) :
+    steps && slave_test_enable.includes('alt') ? mine_steps_alt(opt) :
     steps ? mine_steps(opt) :
     mine_worker_call(opt);
   mine_et.on('update', up=>this.emit('update', {...up, reward}));
@@ -46,6 +48,67 @@ function header_match(a, b){
   return buf_to_hex(_a)==buf_to_hex(_b);
 }
 
+function mine_steps_alt({pow, header, target, min, max}){
+  return etask(function*(et)
+{
+  let be = yield import('./be.js');
+  let orig_header = buf_to_hex(header);
+  target ||= header_get_target(header);
+  let target_n = target_from_compact(target);
+  let last = Date.now();
+  pow ||= 'sha256lif';
+  assert(pow=='sha256lif');
+  let up = {hps: 0, total_h: 0, mine_h: 0, target};
+  let events = {
+    onProgress(step){
+      up.total_h += step;
+      up.mine_h = step;
+      let now = Date.now();
+      up.hps = Math.round(step/Math.max(now-last, 1)*1000);
+      console.log('step', step);
+      et.emit('update', up);
+    },
+    onComplete(res){ return etask(function*(){
+      let {nonce, time, header: s_header, checksum, mask} = res;
+      be.stop();
+      console.log('mask found! nonce '+nonce+' time '+time);
+      console.log('header      '+s_header);
+      console.log('header orig '+orig_header);
+      console.log('checksum '+checksum);
+      console.log('nonce '+nonce.toString(16));
+      let b_header = buf_from_hex(s_header);
+      let _checksum = buf_to_hex(hash256_pow(pow, b_header));
+      console.log('real checksum '+_checksum);
+      assert(checksum==_checksum,
+        'invalid checksum mismatch.\ncalc: '+_checksum+'\nfound: '+checksum);
+      // do accurate comparison to target, not just simple bit-mask zero bits
+      let ret = mine({pow, header: b_header, min: nonce, max: nonce+1, target});
+      if (!ret){
+        console.log('target not good enough.');
+        console.log('mask:     '+mask);
+        console.log('chehksum: '+checksum);
+        let target_s = target_from_compact(target).toString(16).padStart(64, 0);
+        console.log('target:   '+target_s);
+        yield etask.sleep(1000); // make sure time passes
+        be.start();
+        return;
+      }
+      console.log('found approved win!');
+      et.return({found: true, header: s_header, nonce, time});
+    }); },
+    onError(error){
+      console.error(error);
+      et.return({error});
+    },
+  };
+  if (!be.init(events))
+    return {error: 'failed be.init'};
+  be.setLoadRate(2);
+  be.start({header, target_n});
+  et.on('finally', ()=>be.stop());
+  return etask.wait();
+}); }
+
 export function mine_slave_listen(){
   return lifnet_listen({topic: 'lifcoin/mine_slave'}, ({msg, sock})=>{
     let {header: header_hex, target, min, max, pow} = msg.params;
@@ -56,7 +119,9 @@ export function mine_slave_listen(){
     const header = buf_from_hex(header_hex);
     let et = etask(function*(et){
       et.on('finally', ()=>sock.close());
-      let mine_et = mine_steps({pow, header, target, min, max});
+      let mine_et = slave_test_enable.includes('alt') ? 
+        mine_steps_alt({pow, header, target, min, max}) :
+        mine_steps({pow, header, target, min, max});
       mine_et.on('update', up=>sock.notify('update', up));
       let ret = yield mine_et;
       if (!ret?.found){
@@ -176,13 +241,13 @@ export function mine_instant({netconf, saddr, target}){
 }); };
 
 let STALE_OFFER = 60; // 1 minute
-let slave_test_enable = 1;
+let slave_test_enable = ''; // alt remote slave
 export function mine_instant_pool({wallet, reward_share, target}){
   return etask(function*mine_instant_pool()
 {
   const {netconf} = wallet;
   const {pow} = netconf;
-  if (slave_test_enable){
+  if (slave_test_enable.includes('slave')){
     const slave_listen = mine_slave_listen(netconf);
     this.on('finally', ()=>slave_listen.close());
   }
