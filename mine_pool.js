@@ -239,7 +239,8 @@ export function mine_instant({netconf, saddr, target}){
 }); };
 
 let STALE_OFFER = 60; // 1 minute
-let slave_test_enable = ''; // 'alt remote slave'
+// localStorage.setItem('slave_test_enable', 'alt remote slave')
+let slave_test_enable = localStorage.getItem('slave_test_enable')||'';
 export function mine_instant_pool({wallet, reward_share, target}){
   return etask(function*mine_instant_pool()
 {
