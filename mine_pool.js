@@ -101,7 +101,7 @@ function mine_steps_alt({pow, header, target, min, max}){
   };
   if (!be.init(events))
     return {error: 'failed be.init'};
-  be.setLoadRate(2);
+  be.setLoadRate(1);
   be.start({header, target_n});
   et.on('finally', ()=>be.stop());
   return etask.wait();
