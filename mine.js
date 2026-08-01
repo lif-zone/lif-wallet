@@ -114,9 +114,7 @@ export function header_set_time(header, time){
 
 export function mine_single(pow, header, target_a, nonce){
   header_set_nonce(header, nonce);
-  console.log('mine_single '+header.toString('hex'));
   let hash = hash256_pow(pow, Buffer.from(header));
-  console.log('hash '+hash.toString('hex'));
   if (target_rcmp(hash, target_a)<=0){
     D && console.log('mine_single: found nonce', nonce);
     return {found: true, nonce};
