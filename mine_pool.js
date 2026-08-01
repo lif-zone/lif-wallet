@@ -154,7 +154,7 @@ export function mine_slave({pow, header, min, max, target}){ return etask(functi
 }); }
 
 export function mine_instant({netconf, saddr, target}){
-  return etask(function*mine_instant()
+  return etask(function*mine_instant(et)
 {
   const _err = err=>{
     err = ''+err;
