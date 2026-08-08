@@ -811,7 +811,7 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
         {netconf.lif_kv && <button onClick={onKvAdd}>Get Domain Name</button>}
         {netconf.lif_kv && settings.ls.advanced && <button onClick={onKvAddRaw}>Get Key/Val</button>}
         {netconf.lif_kv && <button onClick={onMine}>Mine</button>}
-        {netconf.lif_kv && settings.ls.advanced && balance>=50*1e8 && <button onClick={onMinePool}>Mining pool</button>}
+        {netconf.lif_kv && settings.ls.advanced && <button onClick={onMinePool}>Mining pool</button>}
         {netconf.lif_kv && settings.ls.devtools && transactions.some(tx=>!tx.timestamp) && (
           <button onClick={async()=>{
             try {
@@ -1289,10 +1289,18 @@ function Mine_pool_screen({wallet}){
   const elapsed = info.elapsed ||= 0;
   const last_err = info.err ||= null;
   const status = info.status ||= null;
+  const balance = wallet.c.balance ?? null;
+  const sufficient = balance!==null && balance>=50*1e8;
   const toggle = ()=>pool_toggle(wallet);
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <h3>Mining pool server</h3>
+      {!sufficient && (
+        <div style={{color: '#c00', marginTop: 8}}>
+          Insufficient balance to be a Mine pool server: required minimum
+          balance: 50 {symbol}
+        </div>
+      )}
       <button onClick={toggle} style={{fontSize: 16, marginTop: 8}}>
         {on ? '⏹ Stop mining pool' : '▶ Start mining pool'}
       </button>
