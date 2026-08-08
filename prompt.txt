@@ -1509,3 +1509,11 @@ Implemented in lif-wallet/mine_pool.js:
 - mine_slave_listen() (now exported): cleaned up (removed dead if(0) block), fixed buf_to_hex conversion for found notify, added sock.close() after found/not_found, fixed ret?.total_h optional chaining
 - mine_slave({pow, header, min, max, target}) (new export): mine_steps-compatible etask — connects via lifnet_connect('mine_slave', params), registers sock.method handlers for update/found/not_found, suspends on ewait(done) resolved by sock close, cancel handler calls sock.close()
 - Protocol: server notifies client with 'update' (periodic, ~1s from mine_steps), 'found' (with header hex-encoded), 'not_found'; server closes sock after result
+
+---
+USER:
+move 'sufficient balance' check for Mine pool server from Wallet_screen to Mine_pool_screen. show red warning if insufficient balance.
+
+CLAUDE:
+- Wallet_screen: removed balance>=50*1e8 condition from Mining pool button (always shows when advanced is on)
+- Mine_pool_screen: added balance = wallet.c.balance ?? null, sufficient = balance!==null && balance>=50*1e8; renders red warning div if !sufficient: "Insufficient balance to be a Mine pool server: required minimum balance: 50 {symbol}"

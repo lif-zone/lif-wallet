@@ -20,8 +20,8 @@ export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   let reward = template.reward;
   let opt = {pow: netconf.pow, header, min, max, target};
   let mine_et =
-    steps && slave_test_enable.includes('remote') ? mine_slave(opt) :
-    steps && slave_test_enable.includes('alt') ? mine_steps_alt(opt) :
+    steps && mine_slave_enable.includes('remote') ? mine_slave(opt) :
+    steps && mine_slave_enable.includes('alt') ? mine_steps_alt(opt) :
     steps ? mine_steps(opt) :
     mine_worker_call(opt);
   mine_et.on('update', up=>this.emit('update', {...up, reward}));
@@ -117,7 +117,7 @@ export function mine_slave_listen(){
     const header = buf_from_hex(header_hex);
     let et = etask(function*(et){
       et.on('finally', ()=>sock.close());
-      let mine_et = slave_test_enable.includes('alt') ? 
+      let mine_et = mine_slave_enable.includes('alt') ? 
         mine_steps_alt({pow, header, target, min, max}) :
         mine_steps({pow, header, target, min, max});
       mine_et.on('update', up=>sock.notify('update', up));
@@ -239,16 +239,20 @@ export function mine_instant({netconf, saddr, target}){
 }); };
 
 let STALE_OFFER = 60; // 1 minute
-// localStorage.setItem('slave_test_enable', 'alt remote slave')
-let slave_test_enable = localStorage.getItem('slave_test_enable')||'';
+// localStorage.setItem('mine_slave_enable', 'alt remote slave')
+let mine_slave_enable = localStorage.getItem('mine_slave_enable')||'';
+export function mine_slave_set(set){
+  mine_slave_enable = set;
+}
 export function mine_instant_pool({wallet, reward_share, target}){
   return etask(function*mine_instant_pool()
 {
   const {netconf} = wallet;
   const {pow} = netconf;
-  if (slave_test_enable.includes('slave')){
+  if (mine_slave_enable.includes('slave')){
     const slave_listen = mine_slave_listen(netconf);
     this.on('finally', ()=>slave_listen.close());
+    return etask.wait();
   }
   const _this = this;
   const _err = err=>{
