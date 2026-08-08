@@ -258,8 +258,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
   if (mine_slave_enable.includes('slave')){
     const slave_listen = mine_slave_listen(netconf);
     slave_listen.on('update', up=>_this.emit('update', up));
-    this.on('finally', ()=>slave_listen.close());
-    return etask.wait();
+    return slave_listen;
   }
   const _err = err=>{
     err = ''+err;
