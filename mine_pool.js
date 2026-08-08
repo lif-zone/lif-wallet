@@ -109,6 +109,7 @@ function mine_steps_alt({pow, header, target, min, max}){
 }); }
 
 export function mine_slave_listen(){ return etask(function*(_et){
+  let win_n = 0;
   let listen = lifnet_listen({topic: 'lifcoin/mine_slave'}, ({msg, sock})=>{
     let {header: header_hex, target, min, max, pow} = msg.params;
     if (pow!='sha256lif')
@@ -122,12 +123,13 @@ export function mine_slave_listen(){ return etask(function*(_et){
         mine_steps_alt({pow, header, target, min, max}) :
         mine_steps({pow, header, target, min, max});
       mine_et.on('update', up=>sock.notify('update', up));
-      mine_et.on('update', up=>_et.emit('update', up));
+      mine_et.on('update', up=>_et.emit('update', {win_n, ...up}));
       let ret = yield mine_et;
       if (!ret?.found){
         sock.notify('not_found', {total_h: ret?.total_h});
         return;
       }
+      win_n++;
       console.log('success! found new mined block:', buf_to_hex(ret.header));
       sock.notify('found', {...ret, header: buf_to_hex(ret.header)});
     });
