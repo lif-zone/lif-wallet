@@ -65,6 +65,7 @@ function mine_steps_alt({pow, header, target, min, max}){
       up.mine_h = step;
       let now = Date.now();
       up.hps = Math.round(step/Math.max(now-last, 1)*1000);
+      last = now;
       console.log('step', step);
       et.emit('update', up);
     },
