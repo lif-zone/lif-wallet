@@ -279,6 +279,8 @@ export function mine_instant_pool({wallet, reward_share, target}){
     const saddr = wallet.c.receiveAddress;
     _status('getting block template');
     const template = yield el.mine_get_template(saddr);
+    if (template.error)
+      return _err(template.error);
     const {reward} = template;
     const reward_net = Math.floor(reward*(1-reward_share));
     const header = buf_from_hex(template.header);
