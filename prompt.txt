@@ -1517,3 +1517,12 @@ move 'sufficient balance' check for Mine pool server from Wallet_screen to Mine_
 CLAUDE:
 - Wallet_screen: removed balance>=50*1e8 condition from Mining pool button (always shows when advanced is on)
 - Mine_pool_screen: added balance = wallet.c.balance ?? null, sufficient = balance!==null && balance>=50*1e8; renders red warning div if !sufficient: "Insufficient balance to be a Mine pool server: required minimum balance: 50 {symbol}"
+
+---
+USER:
+call mine_slave_set(settings.ls.mine_slave ? 'slave' : '') in wallet.jsx where needed so mine_pool.js is set correctly
+
+CLAUDE:
+- Added mine_slave_set to mine_pool.js import in wallet.jsx
+- On settings screen init (useState): calls mine_slave_set(settings.ls.mine_slave ? 'slave' : '') to sync on load
+- on_mine_slave_toggle: calls mine_slave_set(v ? 'slave' : '') on toggle before saving

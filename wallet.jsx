@@ -18,7 +18,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   buf_to_hex,
 } from './wallet_db.js';
 import {mine_stats_calc} from './mine.js';
-import {mine_solo, mine_instant, mine_instant_pool} from './mine_pool.js';
+import {mine_solo, mine_instant, mine_instant_pool, mine_slave_set} from './mine_pool.js';
 
 await wallet_db_init();
 const settings = settings_get();
@@ -2450,8 +2450,10 @@ function Devtools_screen({onCacheClear, onBack}){
   const [lifnode_cmd, set_lifnode_cmd] = useState(null);
   const [lifnode_res, set_lifnode_res] = useState(null);
   const [dev_target, set_dev_target] = useState(()=>!!settings.ls.dev_target);
-  const [mine_slave, set_mine_slave] =
-    useState(()=>!!settings.ls.mine_slave);
+  const [mine_slave, set_mine_slave] = useState(()=>{
+    mine_slave_set(settings.ls.mine_slave ? 'slave alt' : '');
+    return !!settings.ls.mine_slave;
+  });
   const on_dev_target_toggle = v=>{
     settings.ls.dev_target = !!v;
     set_dev_target(v);
@@ -2459,6 +2461,7 @@ function Devtools_screen({onCacheClear, onBack}){
   };
   const on_mine_slave_toggle = v=>{
     settings.ls.mine_slave = !!v;
+    mine_slave_set(v ? 'slave alt' : '');
     set_mine_slave(v);
     settings_save();
   };
