@@ -2442,9 +2442,16 @@ function Devtools_screen({onCacheClear, onBack}){
   const [lifnode_cmd, set_lifnode_cmd] = useState(null);
   const [lifnode_res, set_lifnode_res] = useState(null);
   const [dev_target, set_dev_target] = useState(()=>!!settings.ls.dev_target);
+  const [mine_slave, set_mine_slave] =
+    useState(()=>!!settings.ls.mine_slave);
   const on_dev_target_toggle = v=>{
     settings.ls.dev_target = !!v;
     set_dev_target(v);
+    settings_save();
+  };
+  const on_mine_slave_toggle = v=>{
+    settings.ls.mine_slave = !!v;
+    set_mine_slave(v);
     settings_save();
   };
   const handleServerChange = (val)=>{
@@ -2483,6 +2490,16 @@ function Devtools_screen({onCacheClear, onBack}){
             onChange={e=>on_dev_target_toggle(e.target.checked)}
           />
           Test real world target (10min hashing at 6.6M H/s)
+        </label>
+      </div>
+      <div style={{marginTop: 28}}>
+        <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+          <input
+            type="checkbox"
+            checked={mine_slave}
+            onChange={e=>on_mine_slave_toggle(e.target.checked)}
+          />
+          Enable slave mining
         </label>
       </div>
       <div style={{marginTop: 20}}>
