@@ -107,8 +107,8 @@ function mine_steps_alt({pow, header, target, min, max}){
   return etask.wait();
 }); }
 
-export function mine_slave_listen(){
-  return lifnet_listen({topic: 'lifcoin/mine_slave'}, ({msg, sock})=>{
+export function mine_slave_listen(){ return etask(function*(_et){
+  let listen = lifnet_listen({topic: 'lifcoin/mine_slave'}, ({msg, sock})=>{
     let {header: header_hex, target, min, max, pow} = msg.params;
     if (pow!='sha256lif')
       return {error: 'invalid pow'};
@@ -121,6 +121,7 @@ export function mine_slave_listen(){
         mine_steps_alt({pow, header, target, min, max}) :
         mine_steps({pow, header, target, min, max});
       mine_et.on('update', up=>sock.notify('update', up));
+      mine_et.on('update', up=>_et.emit('update', up));
       let ret = yield mine_et;
       if (!ret?.found){
         sock.notify('not_found', {total_h: ret?.total_h});
@@ -131,9 +132,13 @@ export function mine_slave_listen(){
     });
     sock.on('close', ()=>et.return());
   });
-}
+  _et.on('finally', ()=>listen.close());
+  return etask.wait();
+}); }
 
-export function mine_slave({pow, header, min, max, target}){ return etask(function*(){
+export function mine_slave({pow, header, min, max, target}){
+  return etask(function*()
+{
   let {sock, error} = yield lifnet_connect('lifcoin/mine_slave',
     {header: buf_to_hex(header), target, min, max, pow});
   if (error)
@@ -249,12 +254,13 @@ export function mine_instant_pool({wallet, reward_share, target}){
 {
   const {netconf} = wallet;
   const {pow} = netconf;
+  const _this = this;
   if (mine_slave_enable.includes('slave')){
     const slave_listen = mine_slave_listen(netconf);
+    slave_listen.on('update', up=>_this.emit('update', up));
     this.on('finally', ()=>slave_listen.close());
     return etask.wait();
   }
-  const _this = this;
   const _err = err=>{
     err = ''+err;
     this.emit('status', {err});
