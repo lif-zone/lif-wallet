@@ -1526,3 +1526,12 @@ CLAUDE:
 - Added mine_slave_set to mine_pool.js import in wallet.jsx
 - On settings screen init (useState): calls mine_slave_set(settings.ls.mine_slave ? 'slave' : '') to sync on load
 - on_mine_slave_toggle: calls mine_slave_set(v ? 'slave' : '') on toggle before saving
+
+---
+USER:
+bug: mine_slave_set not called on load if settings screen never opened. move to top-level init. also 'alt' was missing from the slave enable string.
+
+CLAUDE:
+- Moved mine_slave_set(settings.ls.mine_slave ? 'slave' : '') to top-level after settings_get()
+- Reverted useState initializer to simple !!settings.ls.mine_slave
+- Fixed on_mine_slave_toggle and top-level init to use 'slave alt' consistently
