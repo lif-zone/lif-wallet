@@ -2459,7 +2459,7 @@ function Devtools_screen({onCacheClear, onBack}){
   };
   const on_mine_slave_toggle = v=>{
     settings.ls.mine_slave = !!v;
-    mine_slave_set(v ? 'slave alt' : '');
+    mine_slave_set(v ? 'slave alt remote' : '');
     set_mine_slave(v);
     settings_save();
   };
