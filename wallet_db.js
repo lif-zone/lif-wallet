@@ -62,7 +62,7 @@ const netconf_def = {
     electrum: 'lif:net/lifcoin/electrum',
     //electrum: '/.lif.net/electrum',
     //electrum: '/.lif.net/electrum-proxy',
-    explorer_tx: 'http://localhost:5000/tx/',
+    explorer_tx: 'http://explorer.lifcoin.com/tx/',
     coin_type: 1842,
     fee_def: 5000000, // 1MB = 50LIF
     lif_kv: true,
@@ -76,7 +76,7 @@ const netconf_def = {
     network: networks_liftest,
     electrum: 'lif:net/lifcoin_test/electrum',
     //electrum: '/.lif.net/electrum_test',
-    explorer_tx: 'http://localhost:5000/tx/',
+    explorer_tx: 'http://explorer.lifcoin.com/tx/',
     coin_type: 1,
     fee_def: 5000000, // 1MB = 50LIF
     lif_kv: true,
