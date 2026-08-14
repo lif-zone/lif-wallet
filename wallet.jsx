@@ -23,7 +23,7 @@ import {mine_solo, mine_instant, mine_instant_pool, mine_slave_set} from './mine
 await wallet_db_init();
 const settings = settings_get();
 settings_cs_fetch(); // async in background
-mine_slave_set(settings.ls.mine_slave ? 'slave alt' : '');
+mine_slave_set(settings.ls.mine_slave ? 'slave alt remote' : '');
 
 // Amount display mode
 const Amount_context = createContext(null);
