@@ -23,7 +23,7 @@ import {mine_solo, mine_instant, mine_instant_pool, mine_slave_set} from './mine
 await wallet_db_init();
 const settings = settings_get();
 settings_cs_fetch(); // async in background
-mine_slave_set(settings.ls.mine_slave ? 'slave alt remote' : '');
+mine_slave_set(settings.ls.mine_slave||'');
 
 // Amount display mode
 const Amount_context = createContext(null);
@@ -2451,15 +2451,15 @@ function Devtools_screen({onCacheClear, onBack}){
   const [lifnode_cmd, set_lifnode_cmd] = useState(null);
   const [lifnode_res, set_lifnode_res] = useState(null);
   const [dev_target, set_dev_target] = useState(()=>!!settings.ls.dev_target);
-  const [mine_slave, set_mine_slave] = useState(()=>!!settings.ls.mine_slave);
+  const [mine_slave, set_mine_slave] = useState(()=>settings.ls.mine_slave||'');
   const on_dev_target_toggle = v=>{
     settings.ls.dev_target = !!v;
     set_dev_target(v);
     settings_save();
   };
   const on_mine_slave_toggle = v=>{
-    settings.ls.mine_slave = !!v;
-    mine_slave_set(v ? 'slave alt remote' : '');
+    settings.ls.mine_slave = v;
+    mine_slave_set(v);
     set_mine_slave(v);
     settings_save();
   };
@@ -2502,14 +2502,15 @@ function Devtools_screen({onCacheClear, onBack}){
         </label>
       </div>
       <div style={{marginTop: 28}}>
-        <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-          <input
-            type="checkbox"
-            checked={mine_slave}
-            onChange={e=>on_mine_slave_toggle(e.target.checked)}
-          />
-          Enable slave mining
+        <label style={{display: 'block', marginBottom: 4}}>
+          Slave test options (slave alt remote):
         </label>
+        <input
+          value={mine_slave}
+          onChange={e=>on_mine_slave_toggle(e.target.value)}
+          placeholder=""
+          style={{width: '100%', boxSizing: 'border-box'}}
+        />
       </div>
       <div style={{marginTop: 20}}>
         <label style={{fontWeight: 'bold'}}>Lifcoin Server:</label>

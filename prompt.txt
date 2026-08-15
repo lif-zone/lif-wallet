@@ -1535,3 +1535,13 @@ CLAUDE:
 - Moved mine_slave_set(settings.ls.mine_slave ? 'slave' : '') to top-level after settings_get()
 - Reverted useState initializer to simple !!settings.ls.mine_slave
 - Fixed on_mine_slave_toggle and top-level init to use 'slave alt' consistently
+
+---
+USER:
+change mine_slave setting in wallet.jsx from checkbox to string text input. label: 'Slave test options (slave alt remote):', initially empty string.
+
+CLAUDE:
+- Top-level init: mine_slave_set(settings.ls.mine_slave||'')
+- State changed from !!settings.ls.mine_slave (bool) to settings.ls.mine_slave||'' (string)
+- on_mine_slave_toggle: stores/passes string directly, no bool conversion
+- UI: replaced checkbox+label with text input and label above it
