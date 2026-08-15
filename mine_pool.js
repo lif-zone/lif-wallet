@@ -71,7 +71,6 @@ function mine_steps_alt({pow, header, target, min, max}){
     },
     onComplete(res){ return etask(function*(){
       let {nonce, time, header: s_header, checksum, mask} = res;
-      be.stop();
       console.log('mask found! nonce '+nonce+' time '+time);
       console.log('header '+s_header);
       console.log('checksum '+checksum);
@@ -88,11 +87,10 @@ function mine_steps_alt({pow, header, target, min, max}){
         console.log('chehksum: '+checksum);
         let target_s = target_from_compact(target).toString(16).padStart(64, 0);
         console.log('target:   '+target_s);
-        yield etask.sleep(1000); // make sure time passes
-        be.start();
         return;
       }
       console.log('found approved win!');
+      be.stop();
       et.return({found: true, header: b_header, nonce, time});
     }); },
     onError(error){
