@@ -108,6 +108,7 @@ function mine_steps_alt({pow, header, target, min, max}){
   return etask.wait();
 }); }
 
+let mine_slave_et;
 export function mine_slave_listen(){ return etask(function*(_et){
   let win_n = 0;
   let listen = lifnet_listen({topic: 'lifcoin/mine_slave'}, ({msg, sock})=>{
@@ -116,8 +117,10 @@ export function mine_slave_listen(){ return etask(function*(_et){
       return {error: 'invalid pow'};
     if (!header_hex)
       return {error: 'no header'};
+    if (mine_slave_et)
+      return {error: 'busy'};
     const header = buf_from_hex(header_hex);
-    let et = etask(function*(et){
+    let et = mine_slave_et = etask(function*(et){
       et.on('finally', ()=>sock.close());
       let mine_et = mine_slave_enable.includes('alt') ? 
         mine_steps_alt({pow, header, target, min, max}) :
@@ -133,7 +136,10 @@ export function mine_slave_listen(){ return etask(function*(_et){
       console.log('success! found new mined block:', buf_to_hex(ret.header));
       sock.notify('found', {...ret, header: buf_to_hex(ret.header)});
     });
-    sock.on('close', ()=>et.return());
+    sock.on('close', ()=>{
+      et.return();
+      mine_slave_et = null;
+    });
   });
   _et.on('finally', ()=>listen.close());
   return etask.wait();
