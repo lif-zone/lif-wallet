@@ -1502,12 +1502,13 @@ function Coin_screen({wallet, coin, onSend}){
         break;
     }
   }
+  const [showPrivKey, setShowPrivKey] = useState(false);
   let publicKey = null, privateKey = null;
   if (addrInfo){
     const root = hd_root(ls.mnemonic, netconf.network, ls.passphrase||'');
     const info = hd_addr(netconf.network, root, accountPath, addrInfo.chain, addrInfo.index);
     publicKey = buf_to_hex(info.keyPair.publicKey);
-    if (settings.ls.advanced)
+    if (showPrivKey)
       privateKey = buf_to_hex(info.keyPair.privateKey);
   }
   const Row = ({label, val})=>(
@@ -1537,11 +1538,14 @@ function Coin_screen({wallet, coin, onSend}){
           {privateKey && <Row label="Private key" val={privateKey} />}
         </tbody>
       </table>
-      {!isSpent && (
-        <div style={{marginTop: 16}}>
-          <button onClick={onSend}>Send</button>
-        </div>
-      )}
+      <div style={{marginTop: 16, display: 'flex', gap: 8}}>
+        {!isSpent && <button onClick={onSend}>Send</button>}
+        {addrInfo && (
+          <button onClick={()=>setShowPrivKey(v=>!v)}>
+            {showPrivKey ? 'Hide private key' : 'View private key'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

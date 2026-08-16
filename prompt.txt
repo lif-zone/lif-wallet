@@ -1615,3 +1615,10 @@ Write the derivation path of the found address below the locate result.
 CLAUDE:
 - wallet_locate_addr: now also returns addrInfo (the matching addr entry with chain/index)
 - UI: displays derivation path as `${accountPath}/${chain}/${index}` in monospace below the result line
+---
+USER:
+In Coin details page, add a button to view private key.
+
+CLAUDE:
+- Added showPrivKey state; private key now computed only when showPrivKey is true (removed settings.ls.advanced gate)
+- Added "View private key"/"Hide private key" toggle button next to Send button (only shown when addrInfo exists); private key appears as a table row when revealed
