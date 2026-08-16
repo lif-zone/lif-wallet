@@ -1559,3 +1559,12 @@ CLAUDE:
 - wallet_db.js: added test: true to liftest netconf
 - wallet.jsx (Add_wallet_screen + Settings_screen filters): changed devtools||!test to (devtools&&show_testnet)||!test
 - wallet.jsx (Devtools_screen): added show_testnet state, on_show_testnet_toggle handler, and "Enable tLIF tBTC testnet" checkbox (persisted as settings.ls.show_testnet)
+---
+USER:
+In wallet.jsx in the 'Coin Details' screen, if its an unspent coin, add a 'Send' button. It opens a Send screen where: funding is ONLY that coin, initial amount = coin value - fee, 'Coin value' shown instead of 'Balance'.
+
+CLAUDE:
+- goBack: added 'send_coin' → 'coin_info' case
+- App render: pass onSend prop to Coin_screen; add screen=='send_coin' rendering Send_coin_screen
+- Coin_screen: accept onSend prop; show Send button when !isSpent
+- New Send_coin_screen component: coinWallet = wallet with c.utxos filtered to just the matching UTXO; fee initialized via tx_send lazy state; amountSat initialized to coin.value - fee; useEffect recalcs fee on amountSat change; handleSend uses coinWallet; shows 'Coin value' instead of 'Balance'

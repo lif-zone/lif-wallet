@@ -327,6 +327,8 @@ function BrightWallet(){
   const goBack = ()=>{
     if (screen=='kv_send' || screen=='kv_edit')
       setScreen('kv_info');
+    else if (screen=='send_coin')
+      setScreen('coin_info');
     else if (screen=='coin_info')
       setScreen('tx_info');
     else if (screen=='tx_info' || screen=='kv_info')
@@ -465,6 +467,14 @@ function BrightWallet(){
         <Coin_screen
           wallet={wallet}
           coin={selectedCoinData}
+          onSend={()=>setScreen('send_coin')}
+        />
+      )}
+      {screen=='send_coin' && selectedCoinData && wallet && (
+        <Send_coin_screen
+          wallet={wallet}
+          coin={selectedCoinData}
+          onSent={()=>setScreen('wallet_info')}
         />
       )}
       {screen=='kv_info' && selectedKeyData && wallet && (
@@ -1459,7 +1469,7 @@ function Kv_info_screen({kv_d, onViewTx, onTransfer, onEdit}){
 }
 
 // Coin Detail Screen
-function Coin_screen({wallet, coin}){
+function Coin_screen({wallet, coin, onSend}){
   const {txHash, voutIndex, value, address} = coin;
   const {ls, netconf} = wallet;
   const allAddrs = wallet.c.addrs||[];
@@ -1519,6 +1529,11 @@ function Coin_screen({wallet, coin}){
           {privateKey && <Row label="Private key" val={privateKey} />}
         </tbody>
       </table>
+      {!isSpent && (
+        <div style={{marginTop: 16}}>
+          <button onClick={onSend}>Send</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1919,6 +1934,70 @@ function Send_screen({wallet, onSent}){
     <div style={{marginTop: 16, maxWidth: 400}}>
       <h3>Send {symbol}</h3>
       <Balance_available bal={bal} symbol={symbol} cost={amountSat+fee} />
+      <Addr_field value={toAddress} onChange={setToAddress} netconf={netconf} onValid={v=>setValid('addr',v)} />
+      <Amount_field value={amountSat} onChange={setAmountSat} symbol={symbol} onValid={v=>setValid('amount',v)} min={1} />
+      <Fee_field value={fee} onChange={setFee} netconf={netconf} />
+      <button onClick={handleSend} disabled={sending||!isValid} style={{marginTop: 8}}>
+        {sending ? 'Sending…' : 'Send'}
+      </button>
+    </div>
+  );
+}
+
+// Send Coin Screen (fund from single specific coin only)
+function Send_coin_screen({wallet, coin, onSent}){
+  const modal = useModal();
+  const {netconf, c: {changeAddrInfo}} = wallet;
+  const coinWallet = useMemo(()=>{
+    const coinUtxo = (wallet.c.utxos||[]).find(u=>u.tx_hash==coin.txHash && u.tx_pos==coin.voutIndex);
+    return {...wallet, c: {...wallet.c, utxos: coinUtxo ? [coinUtxo] : []}};
+  }, []);
+  const {setValid, isValid} = useFormValid();
+  const [toAddress, setToAddress] = useState('');
+  const [fee, setFee] = useState(()=>{
+    const r = tx_send({wallet: coinWallet, saddr_to: changeAddrInfo.address, value: 1});
+    return r.fee || 0;
+  });
+  const [amountSat, setAmountSat] = useState(()=>Math.max(1, coin.value - fee));
+  const [sending, setSending] = useState(false);
+  const coinOk = amountSat + fee <= coin.value;
+  useEffect(()=>{ setValid('bal', coinOk); }, [coinOk]);
+  useEffect(()=>{
+    const value = amountSat || 1;
+    const saddr_to = toAddress || changeAddrInfo.address;
+    setFee(tx_send({wallet: coinWallet, saddr_to, value}).fee || 0);
+  }, [amountSat]);
+  const handleSend = async()=>{
+    setSending(true);
+    try {
+      const {err, fee: _fee, tx} =
+        tx_send({wallet: coinWallet, saddr_to: toAddress, value: amountSat, fee});
+      if (err)
+        throw Error(err);
+      const txid = tx.getId();
+      await tx_broadcast(netconf, tx);
+      setFee(_fee);
+      const explorerLink = netconf.explorer_tx ? `\n${netconf.explorer_tx}${txid}` : '';
+      await modal.alert(`Transaction sent!\nTXID: ${txid}${explorerLink}`);
+      setToAddress('');
+      setAmountSat(0);
+      onSent?.();
+    } catch(err){
+      await modal.alert(err.message);
+    } finally {
+      setSending(false);
+    }
+  };
+  const symbol = netconf.symbol;
+  return (
+    <div style={{marginTop: 16, maxWidth: 400}}>
+      <h3>Send {symbol}</h3>
+      <div style={{fontSize: 13, color: '#666', marginTop: 4}}>
+        Coin value: <Amount sat={coin.value} symbol={symbol} />
+        {!coinOk && (
+          <div style={{color: 'red', fontSize: 12, marginTop: 2}}>Insufficient coin value</div>
+        )}
+      </div>
       <Addr_field value={toAddress} onChange={setToAddress} netconf={netconf} onValid={v=>setValid('addr',v)} />
       <Amount_field value={amountSat} onChange={setAmountSat} symbol={symbol} onValid={v=>setValid('amount',v)} min={1} />
       <Fee_field value={fee} onChange={setFee} netconf={netconf} />
