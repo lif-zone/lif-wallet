@@ -1602,3 +1602,16 @@ Instead of "View transaction" button, make the wallet name itself a link.
 
 CLAUDE:
 Replaced "Found in <strong>name</strong> <button>View transaction</button>" with "Found in <span link>name</span>" — wallet name is now a clickable underlined link.
+---
+USER:
+If found but no transaction, show "belongs to <link>Wallet</link> - no transactions yet" instead of "Found in".
+
+CLAUDE:
+Conditionally show "Found in" (with tx) or "Belongs to ... — no transactions yet" (without tx) in locate result.
+---
+USER:
+Write the derivation path of the found address below the locate result.
+
+CLAUDE:
+- wallet_locate_addr: now also returns addrInfo (the matching addr entry with chain/index)
+- UI: displays derivation path as `${accountPath}/${chain}/${index}` in monospace below the result line

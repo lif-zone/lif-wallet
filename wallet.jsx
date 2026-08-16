@@ -2563,13 +2563,21 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
       )}
       {locateResult && locateResult!='not_found' && (
         <div style={{marginTop: 8}}>
-          Found in{' '}
+          {locateResult.tx ? 'Found in' : 'Belongs to'}{' '}
           <span
             onClick={()=>onLocateAddr(locateResult.wallet.ls.id, locateResult.tx, locateResult.walletAddrs)}
             style={{cursor: 'pointer', color: '#00e', textDecoration: 'underline'}}
           >
             {locateResult.wallet.ls.name}
           </span>
+          {!locateResult.tx && ' — no transactions yet'}
+          <div style={{fontFamily: 'monospace', fontSize: 12, color: '#666', marginTop: 3}}>
+            {(()=>{
+              const {wallet, addrInfo} = locateResult;
+              const ap = wallet.ls.derivPath || hd_path_def(wallet.netconf);
+              return `${ap}/${addrInfo.chain}/${addrInfo.index}`;
+            })()}
+          </div>
         </div>
       )}
       <div style={{marginTop: 28}}>
