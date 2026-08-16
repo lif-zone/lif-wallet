@@ -1841,22 +1841,30 @@ function Amount_field({value, onChange, symbol, onValid, onBlur, min=0, autoFocu
   const strRef = useRef(str);
   strRef.current = str;
   const prev_mode = useRef(mode);
+  const lastEmitted = useRef(str_to_sat(sat_to_str(value, mode), mode));
   useEffect(()=>{
     if (prev_mode.current==mode) return;
     const sat = str_to_sat(strRef.current, prev_mode.current);
     setStr(sat_to_str(sat, mode));
     prev_mode.current = mode;
   }, [mode]);
+  useEffect(()=>{
+    if (value!==lastEmitted.current)
+      setStr(sat_to_str(value, mode));
+  }, [value]);
   const sat = str_to_sat(str, mode);
   const valid = sat >= min;
   useEffect(()=>{ onValid?.(valid); }, [valid]);
   const handle_change = v=>{
     setStr(v);
-    onChange(str_to_sat(v, mode));
+    const s = str_to_sat(v, mode);
+    lastEmitted.current = s;
+    onChange(s);
   };
   const handle_blur = ()=>{
     const s = str_to_sat(str, mode);
     setStr(sat_to_str(s, mode));
+    lastEmitted.current = s;
     onChange(s);
     onBlur?.();
   };

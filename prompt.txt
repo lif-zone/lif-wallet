@@ -1575,3 +1575,10 @@ In Send_screen(), on the right side of the balance, add a button "Send all funds
 CLAUDE:
 - Added handleSendAll: setAmountSat(Math.max(1, bal - fee))
 - Wrapped Balance_available and the new "Send all funds" button in a flex row div
+---
+USER:
+"Send all funds" button did not update the amount field. Clicking setAmountSat() worked but the input box stayed at 0.
+
+CLAUDE:
+Root cause: Amount_field had no useEffect watching the external value prop — str was only initialized once.
+Fix: added lastEmitted ref (tracks sat values emitted to parent); added useEffect on value prop that calls setStr when value differs from lastEmitted (external change). handle_change and handle_blur now update lastEmitted before calling onChange.
