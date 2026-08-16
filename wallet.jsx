@@ -1908,6 +1908,7 @@ function Send_screen({wallet, onSent}){
     const saddr_to = toAddress || changeAddrInfo.address;
     setFee(tx_send({wallet, saddr_to, value}).fee||0);
   }, [amountSat, utxos]);
+  const handleSendAll = ()=>setAmountSat(Math.max(1, bal - fee));
   const handleSend = async()=>{
     setSending(true);
     try {
@@ -1933,7 +1934,10 @@ function Send_screen({wallet, onSent}){
   return (
     <div style={{marginTop: 16, maxWidth: 400}}>
       <h3>Send {symbol}</h3>
-      <Balance_available bal={bal} symbol={symbol} cost={amountSat+fee} />
+      <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+        <Balance_available bal={bal} symbol={symbol} cost={amountSat+fee} />
+        <button onClick={handleSendAll} style={{whiteSpace: 'nowrap', fontSize: 12}}>Send all funds</button>
+      </div>
       <Addr_field value={toAddress} onChange={setToAddress} netconf={netconf} onValid={v=>setValid('addr',v)} />
       <Amount_field value={amountSat} onChange={setAmountSat} symbol={symbol} onValid={v=>setValid('amount',v)} min={1} />
       <Fee_field value={fee} onChange={setFee} netconf={netconf} />

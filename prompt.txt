@@ -1568,3 +1568,10 @@ CLAUDE:
 - App render: pass onSend prop to Coin_screen; add screen=='send_coin' rendering Send_coin_screen
 - Coin_screen: accept onSend prop; show Send button when !isSpent
 - New Send_coin_screen component: coinWallet = wallet with c.utxos filtered to just the matching UTXO; fee initialized via tx_send lazy state; amountSat initialized to coin.value - fee; useEffect recalcs fee on amountSat change; handleSend uses coinWallet; shows 'Coin value' instead of 'Balance'
+---
+USER:
+In Send_screen(), on the right side of the balance, add a button "Send all funds" that sets amount to full balance minus fees.
+
+CLAUDE:
+- Added handleSendAll: setAmountSat(Math.max(1, bal - fee))
+- Wrapped Balance_available and the new "Send all funds" button in a flex row div
