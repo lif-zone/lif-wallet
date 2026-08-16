@@ -669,7 +669,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
                 checked={networkKey==key}
                 onChange={()=>{ setNetworkKey(key); setDerivPath(hd_path_def(netconf)); }}
               />
-              {netconf.symbol} ({netconf.name})
+              {netconf.symbol} {netconf.name}
             </label>
           ))}
         </div>
