@@ -928,7 +928,7 @@ export function kv_is_dns(key){
   return dns;
 }
 
-// Returns {wallet, tx, walletAddrs, addrInfo} if addr found in any wallet, or null
+// Returns {wallet, txs, walletAddrs, addrInfo} if addr found in any wallet, or null
 export function wallet_locate_addr(addr){
   for (const wallet of OV(g_wallets)){
     const addrs = wallet.c?.addrs||[];
@@ -936,14 +936,14 @@ export function wallet_locate_addr(addr){
     if (!addrInfo)
       continue;
     const walletAddrs = new Set(addrs.map(a=>a.address));
-    const tx = (wallet.c?.transactions||[]).find(t=>{
+    const txs = (wallet.c?.transactions||[]).filter(t=>{
       const vouts = t._vtx?.vout||[];
       return vouts.some(v=>{
         const a = v.scriptPubKey?.address||v.scriptPubKey?.addresses?.[0];
         return a==addr;
       });
-    })||null;
-    return {wallet, tx, walletAddrs, addrInfo};
+    });
+    return {wallet, txs, walletAddrs, addrInfo};
   }
   return null;
 }

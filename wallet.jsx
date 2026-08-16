@@ -2567,14 +2567,14 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
       )}
       {locateResult && locateResult!='not_found' && (
         <div style={{marginTop: 8}}>
-          {locateResult.tx ? 'Found in' : 'Belongs to'}{' '}
+          {locateResult.txs.length ? 'Found in' : 'Belongs to'}{' '}
           <span
-            onClick={()=>onLocateAddr(locateResult.wallet.ls.id, locateResult.tx, locateResult.walletAddrs)}
+            onClick={()=>onLocateAddr(locateResult.wallet.ls.id, null, locateResult.walletAddrs)}
             style={{cursor: 'pointer', color: '#00e', textDecoration: 'underline'}}
           >
             {locateResult.wallet.ls.name}
           </span>
-          {!locateResult.tx && ' — no transactions yet'}
+          {!locateResult.txs.length && ' — no transactions yet'}
           <div style={{fontFamily: 'monospace', fontSize: 12, color: '#666', marginTop: 3}}>
             {(()=>{
               const {wallet, addrInfo} = locateResult;
@@ -2582,6 +2582,17 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
               return `${ap}/${addrInfo.chain}/${addrInfo.index}`;
             })()}
           </div>
+          {locateResult.txs.map((tx, i)=>(
+            <div key={i} style={{marginTop: 4}}>
+              <span
+                onClick={()=>onLocateAddr(locateResult.wallet.ls.id, tx, locateResult.walletAddrs)}
+                style={{cursor: 'pointer', color: '#00e', textDecoration: 'underline',
+                  fontFamily: 'monospace', fontSize: 12}}
+              >
+                {tx.tx_hash}
+              </span>
+            </div>
+          ))}
         </div>
       )}
       <div style={{marginTop: 28}}>
