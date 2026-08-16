@@ -660,7 +660,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
       <div style={{marginTop: 12}}>
         <label>Coin:</label>
         <div style={{marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4}}>
-          {OE(netconfs).filter(([key])=>settings.ls.devtools||!netconfs[key].test).map(([key, netconf])=>(
+          {OE(netconfs).filter(([key])=>(settings.ls.devtools&&settings.ls.show_testnet)||!netconfs[key].test).map(([key, netconf])=>(
             <label key={key} style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
               <input
                 type="radio"
@@ -2426,7 +2426,7 @@ function Settings_screen({onDevtools, onBack}){
       <p style={{fontSize: 13, color: '#666', marginTop: 4}}>
         Configure the ElectrumX server URL for each network.
       </p>
-      {OE(netconfs).filter(([key])=>devtools||!netconfs[key]?.test).map(([key, nc])=>(
+      {OE(netconfs).filter(([key])=>(devtools&&settings.ls.show_testnet)||!netconfs[key]?.test).map(([key, nc])=>(
         <div key={key} style={{marginTop: 14}}>
           <label style={{fontWeight: 'bold'}}>{nc.name}:</label>
           <div style={{display: 'flex', gap: 6, marginTop: 4}}>
@@ -2463,10 +2463,16 @@ function Devtools_screen({onCacheClear, onBack}){
   const [lifnode_cmd, set_lifnode_cmd] = useState(null);
   const [lifnode_res, set_lifnode_res] = useState(null);
   const [dev_target, set_dev_target] = useState(()=>!!settings.ls.dev_target);
+  const [show_testnet, set_show_testnet] = useState(()=>!!settings.ls.show_testnet);
   const [mine_slave, set_mine_slave] = useState(()=>settings.ls.mine_slave||'');
   const on_dev_target_toggle = v=>{
     settings.ls.dev_target = !!v;
     set_dev_target(v);
+    settings_save();
+  };
+  const on_show_testnet_toggle = v=>{
+    settings.ls.show_testnet = !!v;
+    set_show_testnet(v);
     settings_save();
   };
   const on_mine_slave_toggle = v=>{
@@ -2502,6 +2508,16 @@ function Devtools_screen({onCacheClear, onBack}){
         <p style={{fontSize: 13, color: '#666', marginTop: 6}}>
           Clears all cached wallet data and re-fetches from Electrum.
         </p>
+      </div>
+      <div style={{marginTop: 28}}>
+        <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+          <input
+            type="checkbox"
+            checked={show_testnet}
+            onChange={e=>on_show_testnet_toggle(e.target.checked)}
+          />
+          Enable tLIF tBTC testnet
+        </label>
       </div>
       <div style={{marginTop: 28}}>
         <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>

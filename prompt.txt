@@ -1551,3 +1551,11 @@ In Wallet_settings_screen, when backing up wallet, under the 'Backup your wallet
 
 CLAUDE:
 In Wallet_backup component (wallet.jsx), added a conditional block after the seed words textarea: if wallet.ls.passphrase is truthy, renders a 'Passphrase:' label and a read-only monospace input showing the passphrase value.
+---
+USER:
+In wallet.jsx, tLIF (lifcoin testnet) was shown always, while tBTC was only shown with devtools. Make tLIF also only shown with devtools, and add a checkbox in devtools screen "enable tLIF tBTC testnet" - show them only if this checkbox is enabled.
+
+CLAUDE:
+- wallet_db.js: added test: true to liftest netconf
+- wallet.jsx (Add_wallet_screen + Settings_screen filters): changed devtools||!test to (devtools&&show_testnet)||!test
+- wallet.jsx (Devtools_screen): added show_testnet state, on_show_testnet_toggle handler, and "Enable tLIF tBTC testnet" checkbox (persisted as settings.ls.show_testnet)

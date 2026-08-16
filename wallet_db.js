@@ -82,6 +82,7 @@ const netconf_def = {
     lif_kv: true,
     pow: 'sha256lif',
     pow_hps: 50000, // Hash/Sec: android ~60,000 hps, Desktop ~100,000 hps
+    test: true,
     usd: 1,
   },
   btc: {
