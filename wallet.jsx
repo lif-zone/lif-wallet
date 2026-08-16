@@ -2563,11 +2563,13 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
       )}
       {locateResult && locateResult!='not_found' && (
         <div style={{marginTop: 8}}>
-          Found in <strong>{locateResult.wallet.ls.name}</strong>
-          {' '}
-          <button onClick={()=>onLocateAddr(locateResult.wallet.ls.id, locateResult.tx, locateResult.walletAddrs)}>
-            {locateResult.tx ? 'View transaction' : 'Open wallet'}
-          </button>
+          Found in{' '}
+          <span
+            onClick={()=>onLocateAddr(locateResult.wallet.ls.id, locateResult.tx, locateResult.walletAddrs)}
+            style={{cursor: 'pointer', color: '#00e', textDecoration: 'underline'}}
+          >
+            {locateResult.wallet.ls.name}
+          </span>
         </div>
       )}
       <div style={{marginTop: 28}}>

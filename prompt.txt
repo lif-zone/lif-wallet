@@ -1596,3 +1596,9 @@ Move the locate address logic (not the UI) to wallet_db.js.
 CLAUDE:
 - wallet_db.js: added export function wallet_locate_addr(addr) — iterates g_wallets directly, returns {wallet, tx, walletAddrs} or null
 - wallet.jsx: imported wallet_locate_addr; replaced inline loop in handleLocate with setLocateResult(wallet_locate_addr(addr)||'not_found')
+---
+USER:
+Instead of "View transaction" button, make the wallet name itself a link.
+
+CLAUDE:
+Replaced "Found in <strong>name</strong> <button>View transaction</button>" with "Found in <span link>name</span>" — wallet name is now a clickable underlined link.
