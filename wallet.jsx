@@ -13,7 +13,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   wallet_add, wallet_del, wallet_update, wallets_get, wallet_get,
   hd_wallet, hd_path_def, hd_root, hd_addr, addr_valid,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
-  cache_clear, wallet_bal, wallet_locate_addr, kv_is_dns, LIF_DOMAINS,
+  cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
   buf_to_hex,
 } from './wallet_db.js';
@@ -2525,10 +2525,12 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
   const [locateAddr, setLocateAddr] = useState('');
   const [locateResult, setLocateResult] = useState(null);
   const handleLocate = ()=>{
-    const addr = locateAddr.trim();
-    if (!addr)
+    const q = locateAddr.trim();
+    if (!q)
       return;
-    setLocateResult(wallet_locate_addr(addr)||'not_found');
+    const is_txid = /^[0-9a-f]{64}$/i.test(q);
+    const result = is_txid ? wallet_locate_txid(q) : wallet_locate_addr(q);
+    setLocateResult(result||'not_found');
   };
   return (
     <div style={{maxWidth: 520}}>
@@ -2557,7 +2559,7 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
           value={locateAddr}
           onChange={e=>{ setLocateAddr(e.target.value); setLocateResult(null); }}
           onKeyDown={e=>e.key=='Enter' && handleLocate()}
-          placeholder="bc1… or lif1…"
+          placeholder="bc1… lif1… or txid"
           style={{flex: 1, fontFamily: 'monospace', fontSize: 12, boxSizing: 'border-box'}}
         />
         <button onClick={handleLocate}>Find</button>
@@ -2575,13 +2577,15 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
             {locateResult.wallet.ls.name}
           </span>
           {!locateResult.txs.length && ' — no transactions yet'}
-          <div style={{fontFamily: 'monospace', fontSize: 12, color: '#666', marginTop: 3}}>
-            {(()=>{
-              const {wallet, addrInfo} = locateResult;
-              const ap = wallet.ls.derivPath || hd_path_def(wallet.netconf);
-              return `${ap}/${addrInfo.chain}/${addrInfo.index}`;
-            })()}
-          </div>
+          {locateResult.addrInfo && (
+            <div style={{fontFamily: 'monospace', fontSize: 12, color: '#666', marginTop: 3}}>
+              {(()=>{
+                const {wallet, addrInfo} = locateResult;
+                const ap = wallet.ls.derivPath || hd_path_def(wallet.netconf);
+                return `${ap}/${addrInfo.chain}/${addrInfo.index}`;
+              })()}
+            </div>
+          )}
           {locateResult.txs.map((tx, i)=>(
             <div key={i} style={{marginTop: 4}}>
               <span

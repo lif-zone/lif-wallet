@@ -1629,3 +1629,10 @@ Show all transactions for the found address, not just the first one.
 CLAUDE:
 - wallet_locate_addr: changed .find() to .filter(), returns txs (array) instead of tx
 - UI: wallet name link now always navigates to wallet_info (passes null tx); each tx listed separately as a clickable hash link navigating to tx_info
+---
+USER:
+Extend the locate search box to also search by txid (detected by 64 hex char length).
+
+CLAUDE:
+- wallet_db.js: added wallet_locate_txid(txid) — searches wallet.c.transactions by tx_hash, returns {wallet, txs:[tx], walletAddrs, addrInfo:null}
+- wallet.jsx: imported wallet_locate_txid; handleLocate detects txid via /^[0-9a-fA-F]{64}$/ and calls appropriate function; derivation path display conditional on addrInfo; placeholder updated

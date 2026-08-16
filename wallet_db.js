@@ -928,6 +928,19 @@ export function kv_is_dns(key){
   return dns;
 }
 
+// Returns {wallet, txs, walletAddrs, addrInfo: null} if txid found in any wallet, or null
+export function wallet_locate_txid(txid){
+  for (const wallet of OV(g_wallets)){
+    const tx = (wallet.c?.transactions||[]).find(t=>t.tx_hash==txid);
+    if (!tx)
+      continue;
+    const addrs = wallet.c?.addrs||[];
+    const walletAddrs = new Set(addrs.map(a=>a.address));
+    return {wallet, txs: [tx], walletAddrs, addrInfo: null};
+  }
+  return null;
+}
+
 // Returns {wallet, txs, walletAddrs, addrInfo} if addr found in any wallet, or null
 export function wallet_locate_addr(addr){
   for (const wallet of OV(g_wallets)){
