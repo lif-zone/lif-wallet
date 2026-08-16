@@ -1955,6 +1955,18 @@ function Wallet_backup({wallet, onUpdate, onCancel, force}){
         style={{display: 'block', width: '100%', boxSizing: 'border-box',
           fontFamily: 'monospace', fontSize: 13, background: '#fafafa'}}
       />
+      {!!wallet.ls.passphrase && (
+        <div style={{marginTop: 10}}>
+          <div style={{fontWeight: 'bold', marginBottom: 4}}>Passphrase:</div>
+          <input
+            type="text"
+            readOnly
+            value={wallet.ls.passphrase}
+            style={{display: 'block', width: '100%', boxSizing: 'border-box',
+              fontFamily: 'monospace', fontSize: 13, background: '#fafafa'}}
+          />
+        </div>
+      )}
       {phase=='show' && (
         <div style={{display: 'flex', gap: 8, marginTop: 8}}>
           <button onClick={()=>setPhase('verify')}>I wrote it down on paper</button>

@@ -1545,3 +1545,9 @@ CLAUDE:
 - State changed from !!settings.ls.mine_slave (bool) to settings.ls.mine_slave||'' (string)
 - on_mine_slave_toggle: stores/passes string directly, no bool conversion
 - UI: replaced checkbox+label with text input and label above it
+---
+USER:
+In Wallet_settings_screen, when backing up wallet, under the 'Backup your wallet seed words:' box, if there is a passphrase, add a 'Passphrase:' title and a read-only input showing the passphrase.
+
+CLAUDE:
+In Wallet_backup component (wallet.jsx), added a conditional block after the seed words textarea: if wallet.ls.passphrase is truthy, renders a 'Passphrase:' label and a read-only monospace input showing the passphrase value.
