@@ -928,3 +928,22 @@ export function kv_is_dns(key){
   return dns;
 }
 
+// Returns {wallet, tx, walletAddrs} if addr found in any wallet, or null
+export function wallet_locate_addr(addr){
+  for (const wallet of OV(g_wallets)){
+    const addrs = wallet.c?.addrs||[];
+    if (!addrs.some(a=>a.address==addr))
+      continue;
+    const walletAddrs = new Set(addrs.map(a=>a.address));
+    const tx = (wallet.c?.transactions||[]).find(t=>{
+      const vouts = t._vtx?.vout||[];
+      return vouts.some(v=>{
+        const a = v.scriptPubKey?.address||v.scriptPubKey?.addresses?.[0];
+        return a==addr;
+      });
+    })||null;
+    return {wallet, tx, walletAddrs};
+  }
+  return null;
+}
+

@@ -13,7 +13,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   wallet_add, wallet_del, wallet_update, wallets_get, wallet_get,
   hd_wallet, hd_path_def, hd_root, hd_addr, addr_valid,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
-  cache_clear, wallet_bal, kv_is_dns, LIF_DOMAINS,
+  cache_clear, wallet_bal, wallet_locate_addr, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
   buf_to_hex,
 } from './wallet_db.js';
@@ -503,6 +503,14 @@ function BrightWallet(){
         <Settings_screen
           onDevtools={()=>setScreen('devtools')}
           onBack={goHome}
+          onLocateAddr={(walletId, tx, walletAddrs)=>{
+            setActiveWalletId(walletId);
+            if (tx){
+              setSelectedTxData({tx, walletAddrs});
+              setScreen('tx_info');
+            } else
+              setScreen('wallet_info');
+          }}
         />
       )}
       {screen=='devtools' && (
@@ -2484,7 +2492,7 @@ function Get_domain_screen({wallet, onSent, domain=''}){
 }
 
 // Settings Screen
-function Settings_screen({onDevtools, onBack}){
+function Settings_screen({onDevtools, onBack, onLocateAddr}){
   const modal = useModal();
   const {ls, netconf: netconfs} = settings;
   const [electrum, set_electrum] = useState(()=>{
@@ -2510,6 +2518,14 @@ function Settings_screen({onDevtools, onBack}){
     settings.ls.devtools = !!v;
     settings_save();
   };
+  const [locateAddr, setLocateAddr] = useState('');
+  const [locateResult, setLocateResult] = useState(null);
+  const handleLocate = ()=>{
+    const addr = locateAddr.trim();
+    if (!addr)
+      return;
+    setLocateResult(wallet_locate_addr(addr)||'not_found');
+  };
   return (
     <div style={{maxWidth: 520}}>
       <h2>Settings</h2>
@@ -2531,6 +2547,29 @@ function Settings_screen({onDevtools, onBack}){
         </div>
       ))}
       <button onClick={handleSave} style={{marginTop: 20}}>Save Settings</button>
+      <h3 style={{marginTop: 28}}>Locate Address</h3>
+      <div style={{display: 'flex', gap: 6, marginTop: 4}}>
+        <input
+          value={locateAddr}
+          onChange={e=>{ setLocateAddr(e.target.value); setLocateResult(null); }}
+          onKeyDown={e=>e.key=='Enter' && handleLocate()}
+          placeholder="bc1… or lif1…"
+          style={{flex: 1, fontFamily: 'monospace', fontSize: 12, boxSizing: 'border-box'}}
+        />
+        <button onClick={handleLocate}>Find</button>
+      </div>
+      {locateResult=='not_found' && (
+        <div style={{marginTop: 8, color: '#c00'}}>Not found</div>
+      )}
+      {locateResult && locateResult!='not_found' && (
+        <div style={{marginTop: 8}}>
+          Found in <strong>{locateResult.wallet.ls.name}</strong>
+          {' '}
+          <button onClick={()=>onLocateAddr(locateResult.wallet.ls.id, locateResult.tx, locateResult.walletAddrs)}>
+            {locateResult.tx ? 'View transaction' : 'Open wallet'}
+          </button>
+        </div>
+      )}
       <div style={{marginTop: 28}}>
         <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
           <input

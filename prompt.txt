@@ -1582,3 +1582,17 @@ USER:
 CLAUDE:
 Root cause: Amount_field had no useEffect watching the external value prop — str was only initialized once.
 Fix: added lastEmitted ref (tracks sat values emitted to parent); added useEffect on value prop that calls setStr when value differs from lastEmitted (external change). handle_change and handle_blur now update lastEmitted before calling onChange.
+---
+USER:
+Add "Locate address" in settings screen — enter an address, scan all wallet c.addrs, show "Not found" or "Found in <wallet name>" with a link to open that wallet and its transaction.
+
+CLAUDE:
+- Settings_screen: added onLocateAddr prop; locateAddr/locateResult state; handleLocate() iterates OV(wallets_get()), checks wallet.c?.addrs for matching address, finds first tx where vout address matches, sets locateResult={wallet,tx,walletAddrs} or 'not_found'; UI: input+Find button, result shows wallet name + "View transaction"/"Open wallet" button
+- App: passes onLocateAddr callback to Settings_screen; on result sets activeWalletId, navigates to tx_info (with selectedTxData) if tx found, else wallet_info
+---
+USER:
+Move the locate address logic (not the UI) to wallet_db.js.
+
+CLAUDE:
+- wallet_db.js: added export function wallet_locate_addr(addr) — iterates g_wallets directly, returns {wallet, tx, walletAddrs} or null
+- wallet.jsx: imported wallet_locate_addr; replaced inline loop in handleLocate with setLocateResult(wallet_locate_addr(addr)||'not_found')
