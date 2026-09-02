@@ -5,8 +5,9 @@ import React, {useState, useEffect, useMemo, useRef, createContext,
 import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import etask from 'lif-kernel/etask.js';
-import {OE, OV, OA, ewait, esleep, ipc_postmessage, CE, CEL, json, assert, str,
-} from 'lif-kernel/util.js';
+import {OE, OV, OA, ewait, esleep, CE, CEL, json, assert, str}
+  from 'lif-kernel/util.js';
+import {ipc_postmessage} from 'lif-kernel/rpc.js';
 const {split_ws} = str;
 import {settings_get, settings_save, settings_cs_fetch,
   wallet_db_init, wallet_fetch,

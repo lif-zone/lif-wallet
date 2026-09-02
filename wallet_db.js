@@ -7,9 +7,10 @@ const bip32 = BIP32Factory(ecc);
 import {ECPairFactory} from 'ecpair';
 const ecpair = ECPairFactory(ecc);
 import {openDB} from 'idb';
-import {T, OE, OV, OA, CE, CEL, ewait, assert, rpc_websocket, rpc_sock,
+import {T, OE, OV, OA, CE, CEL, ewait, assert,
   _try, version as util_version, date_time, str,
 } from 'lif-kernel/util.js';
+import {rpc_websocket, rpc_sock} from 'lif-kernel/rpc.js';
 import {lifnet_online, lifnet_connect, lifnet_listen, lifnet_set,
 } from 'lif-kernel/lifnet';
 let lif = globalThis.$lif ||= {};
