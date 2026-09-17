@@ -51,7 +51,8 @@ function header_match(a, b){
 function mine_steps_alt({pow, header, target, min, max}){
   return etask(function*(et)
 {
-  let be = yield import('/lif-wallet/alt.js');
+  let alt = mine_slave_enable.match(/alt:([^ ]+)/)[1];
+  let be = yield import(alt);
   let orig_header = buf_to_hex(header);
   target ||= header_get_target(header);
   let target_n = target_from_compact(target);

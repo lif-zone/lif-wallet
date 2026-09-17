@@ -2691,7 +2691,7 @@ function Devtools_screen({onCacheClear, onBack}){
       </div>
       <div style={{marginTop: 28}}>
         <label style={{display: 'block', marginBottom: 4}}>
-          Slave test options (slave alt remote):
+          Slave test options (slave alt:xx remote):
         </label>
         <input
           value={mine_slave}
