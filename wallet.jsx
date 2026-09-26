@@ -298,15 +298,24 @@ function BrightWallet(){
   const [mineStart, setMineStart] = useState(false);
   const mining = useMining();
   useEffect(()=>{
-    let raw = new URL(location.href).searchParams.get('get_domain');
-    if (!raw)
+    let params = new URL(location.href).searchParams;
+    let raw = params.get('get_domain');
+    if (raw){
+      let domain = raw;
+      const id = select_lif_wallet();
+      setWallets(wallets_get());
+      setActiveWalletId(id);
+      setGetDomain(domain);
+      setScreen('wallet_get_domain');
       return;
-    let domain = raw;
-    const id = select_lif_wallet();
-    setWallets(wallets_get());
-    setActiveWalletId(id);
-    setGetDomain(domain);
-    setScreen('wallet_get_domain');
+    }
+    if (params.get('mine')){
+      const id = select_lif_wallet();
+      setWallets(wallets_get());
+      setActiveWalletId(id);
+      setMineStart(true);
+      setScreen('wallet_mine');
+    }
   }, []);
   const addWallet = (w_ls)=>{
     wallet_add(w_ls);
