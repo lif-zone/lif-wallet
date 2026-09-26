@@ -2172,7 +2172,7 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
       <div style={{marginTop: 12}}>
         <label>Domain name:</label>
         <input
-          placeholder="e.g. jungo"
+          placeholder="e.g. myname"
           value={name}
           onChange={e=>setName(e.target.value.trim())}
           style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
@@ -2264,7 +2264,7 @@ function Kv_add_raw_screen({wallet, onSent}){
       <div style={{marginTop: 12}}>
         <label>Key:</label>
         <input
-          placeholder="e.g. dns/jungo"
+          placeholder="e.g. dns/myname"
           value={kv_key}
           onChange={e=>set_kv_key(e.target.value.trim())}
           style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
@@ -2477,7 +2477,7 @@ function Get_domain_screen({wallet, onSent, domain=''}){
       <div style={{marginTop: 12}}>
         <label>Domain name:</label>
         <input
-          placeholder="e.g. jungo"
+          placeholder="e.g. myname"
           value={name}
           onChange={e=>setName(e.target.value.trim())}
           style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
@@ -2490,7 +2490,7 @@ function Get_domain_screen({wallet, onSent, domain=''}){
       <div style={{marginTop: 12}}>
         <label>Site:</label>
         <input
-          placeholder="e.g. lif:git/myproject"
+          placeholder="e.g. git://github.com/myuser/myrepo"
           value={site}
           onChange={e=>setSite(e.target.value.trim())}
           style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
