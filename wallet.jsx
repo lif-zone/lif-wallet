@@ -313,7 +313,6 @@ function BrightWallet(){
       const id = select_lif_wallet();
       setWallets(wallets_get());
       setActiveWalletId(id);
-      setMineStart(true);
       setScreen('wallet_mine');
     }
   }, []);
