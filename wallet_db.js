@@ -686,7 +686,7 @@ export async function el_estimatefee(netconf){
 
 function kv_script(key, val, valbin){
   let ops = [];
-  ops.push(bitcoin.opcodes.op_return, Buffer.from('lif'));
+  ops.push(bitcoin.opcodes.OP_RETURN, Buffer.from('lif'));
   ops.push(Buffer.from('key'), Buffer.from(key));
   ops.push(Buffer.from('val'), Buffer.from(val));
   if (valbin)
