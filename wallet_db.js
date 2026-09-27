@@ -8,7 +8,7 @@ import {ECPairFactory} from 'ecpair';
 const ecpair = ECPairFactory(ecc);
 import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, assert,
-  _try, version as util_version, date_time, str,
+  _try, version as util_version, date_time, str, lif_url_tr,
 } from 'lif-kernel/util.js';
 import {rpc_websocket, rpc_sock} from 'lif-kernel/rpc.js';
 import {lifnet_online, lifnet_connect, lifnet_listen, lifnet_set,
@@ -63,7 +63,7 @@ const netconf_def = {
     electrum: 'lif:net/lifcoin/electrum',
     //electrum: '/.lif.net/electrum',
     //electrum: '/.lif.net/electrum-proxy',
-    explorer_tx: 'http://explorer.lifcoin.com/tx/',
+    explorer_tx: lif_url_tr('http://explorer.lif/tx/'),
     coin_type: 1842,
     fee_def: 5000000, // 1MB = 50LIF
     lif_kv: true,
@@ -77,7 +77,7 @@ const netconf_def = {
     network: networks_liftest,
     electrum: 'lif:net/lifcoin_test/electrum',
     //electrum: '/.lif.net/electrum_test',
-    explorer_tx: 'http://explorer.lifcoin.com/tx/',
+    explorer_tx: lif_url_tr('https://explorer.lif/tx/'),
     coin_type: 1,
     fee_def: 5000000, // 1MB = 50LIF
     lif_kv: true,
