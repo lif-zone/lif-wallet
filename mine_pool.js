@@ -13,10 +13,13 @@ import {tx_out_find, tx_broadcast, tx_send} from './wallet_db.js';
 export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   return etask(function*()
 {
+  const _status = status=>this.emit('status', {status});
+  _status('getting block template');
   const el = _el(netconf);
   let template = yield el.mine_get_template(saddr);
   const header = buf_from_hex(template.header);
   console.log('starting mining', template.header);
+  _status('mining');
   let reward = template.reward;
   let opt = {pow: netconf.pow, header, min, max, target};
   let mine_et =
@@ -30,12 +33,14 @@ export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   if (!mine_ret.found)
     return {err: 'failed mining', ...mine_ret};
   console.log('submitting new block');
+  _status('submitting winning block');
   mine_ret.header = buf_to_hex(mine_ret.header);
   let ret = yield el.mine_submit_header(mine_ret.header);
   console.log('mine_submit res', ret);
   if (!ret?.height)
     return {err: 'failed submitting new block', ...(ret||{})};
   console.log('success! new block height '+ret.height);
+  _status('success');
   return {...ret, reward};
 }); }
 
