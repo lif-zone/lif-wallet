@@ -1157,7 +1157,7 @@ function Mine_fund({wallet, value, start, onEarned}){
     : null;
   return (
     <div>
-      <Mine_progress on={on} stats={stats} symbol={symbol} successMsg={successMsg} />
+      <Mine_progress on={on} stats={stats} symbol={symbol} successMsg={successMsg} mode="instant" />
       {!successV && (
         <div style={{marginTop: 8}}>
           {!on

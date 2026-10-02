@@ -1640,3 +1640,7 @@ CLAUDE:
 USER: In get_domain mining widget, "start" shows "9 hours = 0.02 LIF" which is wrong. mine_instant emits the solo target from the block header but instant reward, so mine_stats_calc computes solo win_time paired with instant reward. Should use instant target (solo target / nslice).
 
 CLAUDE: Fixed mine_instant in mine_pool.js to compute instant_target from header target / nslice, and override the target in the emitted update. Now mine_stats_calc receives the correct instant difficulty target, producing accurate win_time (~1 minute) paired with the instant reward (~0.02 LIF). The dev target override path still works correctly.
+---
+USER: Progress bar in get_domain mining widget doesn't show "1 minute = 0.02 LIF" before clicking start.
+
+CLAUDE: The get_domain widget's Mine_progress call was missing the `mode` prop, so mine_defaults couldn't provide fallback values. Added `mode="instant"` to the Mine_progress call in the get_domain widget.
