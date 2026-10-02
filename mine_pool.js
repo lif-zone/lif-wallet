@@ -268,7 +268,10 @@ export function mine_instant_pool({wallet, reward_share, target}){
   const {netconf} = wallet;
   const {pow} = netconf;
   const _this = this;
+  const _status = status=>this.emit('status', {status});
   if (mine_slave_enable.includes('slave')){
+    _status('in slave mode. '+
+      'disable "slave" in developer options to re-enable instant pool');
     const slave_listen = mine_slave_listen(netconf);
     slave_listen.on('update', up=>_this.emit('update', up));
     return slave_listen;
@@ -278,7 +281,6 @@ export function mine_instant_pool({wallet, reward_share, target}){
     this.emit('status', {err});
     return {err};
   };
-  const _status = status=>this.emit('status', {status});
   _status('connecting');
   let submit_err_n = 0, submit_err = '';
   let win_n = 0, pay_n = 0, win_v = 0, pay_v = 0;
