@@ -1178,8 +1178,24 @@ function fmt_duration(sec){
   return h>0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
-function Mine_progress({on, stats, symbol, successMsg}){
+const mine_defaults = {
+  instant: {reward: 2000000, win_time: 60},
+  solo: {reward: 4500000000, win_time: 6*3600},
+};
+
+function fmt_mine_time(seconds){
+  if (seconds<60)
+    return '1 minute';
+  if (seconds<3600)
+    return ''+Math.ceil(seconds/60)+' minutes';
+  return ''+Math.ceil(seconds/3600)+' hours';
+}
+
+function Mine_progress({on, stats, symbol, successMsg, mode}){
   const progress = successMsg ? 100 : (on ? mine_percent(stats)*100 : 0);
+  const def = mode && mine_defaults[mode] || {};
+  const reward = stats.reward || def.reward || 0;
+  const win_time = stats.win_time || def.win_time || 0;
   return (
     <div style={{marginTop: 12, border: '1px solid #aaa', borderRadius: 6, padding: 12}}>
       <div style={{position: 'relative'}}>
@@ -1187,11 +1203,11 @@ function Mine_progress({on, stats, symbol, successMsg}){
           <div style={{background: '#4a4', height: '100%',
             width: progress+'%', transition: 'width 0.5s'}} />
         </div>
-        {!successMsg && stats.reward>0 && (
+        {!successMsg && reward>0 && (
           <div style={{position: 'absolute', top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)', fontSize: 11, fontWeight: 'bold',
             color: '#333', whiteSpace: 'nowrap', pointerEvents: 'none'}}>
-            <Amount sat={stats.reward} symbol={symbol} />
+            {fmt_mine_time(win_time)} = <Amount sat={reward} symbol={symbol} />
           </div>
         )}
       </div>
@@ -1246,7 +1262,7 @@ function Mine_screen({wallet, start}){
           </label>
         ))}
       </div>
-      <Mine_progress on={on} stats={stats} symbol={symbol} />
+      <Mine_progress on={on} stats={stats} symbol={symbol} mode={on ? info.mode : mode} />
       {on && status && !stats.mining && (
         <div style={{marginTop: 8, fontSize: 13, color: '#888'}}>
           Status: {status}
