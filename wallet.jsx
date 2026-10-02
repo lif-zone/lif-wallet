@@ -2499,7 +2499,7 @@ function Get_domain_screen({wallet, onSent, domain=''}){
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <h3>Get Domain</h3>
-      <div>Cost: <Amount value={fee} netconf={netconf} cost /></div>
+      <div>Cost: <Amount sat={fee} symbol={netconf.symbol} cost /></div>
       <Balance_and_mine bal={bal} wallet={wallet} cost={fee} onSufficient={ok=>setValid('bal', ok)} />
       <div style={{marginTop: 12}}>
         <label>Domain name:</label>
