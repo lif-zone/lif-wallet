@@ -218,9 +218,11 @@ function useMining(){
       });
     }, 1000);
     handles.current[id] = {runningRef, blockStart, intervalId};
-    let cur_stats = {win_n: 0, win_v: 0};
+    let prev = state[id] || {};
+    let cur_stats = prev.stats_by_mode?.[mode] || {win_n: 0, win_v: 0};
     setState(s=>{
-      s[id] = {on: true, mode, stats: cur_stats, elapsed: 0};
+      s[id] = {...prev, on: true, mode, stats: cur_stats, elapsed: 0,
+        stats_by_mode: {...(prev.stats_by_mode||{}), [mode]: cur_stats}};
       return {...s};
     });
     const {netconf} = wallet;
@@ -240,9 +242,17 @@ function useMining(){
             return {...s};
           });
         });
+        function save_stats(){
+          setState(s=>{
+            s[id].stats = {...cur_stats};
+            s[id].stats_by_mode = {...(s[id].stats_by_mode||{}),
+              [mode]: {...cur_stats}};
+            return {...s};
+          });
+        }
         mine_et.on('update', up=>{
           cur_stats = {...cur_stats, ...up, ...mine_stats_calc(up)};
-          setState(s=>{ s[id].stats = {...cur_stats}; return {...s}; });
+          save_stats();
         });
         let ret;
         try {
@@ -258,7 +268,7 @@ function useMining(){
           cur_stats.win_n++;
           cur_stats.win_v += ret.reward;
         }
-        setState(s=>{ s[id].stats = {...cur_stats}; return {...s}; });
+        save_stats();
         yield esleep(1000);
       }
       clearInterval(handles.current[id]?.intervalId);
@@ -1184,9 +1194,9 @@ const mine_defaults = {
 };
 
 function fmt_mine_time(seconds){
-  if (seconds<60)
+  if (seconds<=60)
     return '1 minute';
-  if (seconds<3600)
+  if (seconds<=3600)
     return ''+Math.ceil(seconds/60)+' minutes';
   return ''+Math.ceil(seconds/3600)+' hours';
 }
@@ -1230,11 +1240,12 @@ function Mine_screen({wallet, start}){
   const id = wallet.ls.id;
   const info = state[id] ||= {};
   const on = info.on ||= false;
-  const stats = info.stats ||= {};
+  const [mode, setMode] = useState(info.mode || 'instant');
+  const cur_mode = on ? info.mode : mode;
+  const stats = (info.stats_by_mode||{})[cur_mode] || {};
   const elapsed = info.elapsed ||= 0;
   const last_err = info.err ||= null;
   const status = info.status ||= null;
-  const [mode, setMode] = useState(info.mode || 'instant');
   useEffect(()=>{
     if (start && !on)
       toggle(wallet, mode);
@@ -1262,7 +1273,7 @@ function Mine_screen({wallet, start}){
           </label>
         ))}
       </div>
-      <Mine_progress on={on} stats={stats} symbol={symbol} mode={on ? info.mode : mode} />
+      <Mine_progress on={on} stats={stats} symbol={symbol} mode={cur_mode} />
       {on && status && !stats.mining && (
         <div style={{marginTop: 8, fontSize: 13, color: '#888'}}>
           Status: {status}
