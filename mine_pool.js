@@ -205,18 +205,16 @@ export function mine_instant({netconf, saddr, target}){
     return _err('pool: reward less than fee');
   rg.template++;
   const header = buf_from_hex(template.header);
-  let pay_target;
-  if (target){
-    // simulate real target
-    const win_h = Number(target_to_nhash(target_from_compact(target)));
-    const pay_h = Math.floor(win_h/template.nslice);
-    pay_target = target_to_compact(target_from_nhash(pay_h));
-  }
-  let opt = {pow: netconf.pow, header, target: pay_target};
+  const header_target = target || header_get_target(header);
+  const win_h = Number(target_to_nhash(target_from_compact(header_target)));
+  const instant_h = Math.floor(win_h/template.nslice);
+  const instant_target = target_to_compact(target_from_nhash(instant_h));
+  let opt = {pow: netconf.pow, header, target: target ? instant_target : undefined};
   _status('mining');
   let mine_et = mine_steps(opt);
   mine_et.on('update', up=>{
-    this.emit('update', {...up, mining: true, reward: reward_net});
+    this.emit('update', {...up, mining: true, reward: reward_net,
+      target: instant_target});
     sock.call('mine_instant_update', {mine_h: up.mine_h});
   });
   let mine_ret = yield mine_et;

@@ -1636,3 +1636,7 @@ Extend the locate search box to also search by txid (detected by 64 hex char len
 CLAUDE:
 - wallet_db.js: added wallet_locate_txid(txid) — searches wallet.c.transactions by tx_hash, returns {wallet, txs:[tx], walletAddrs, addrInfo:null}
 - wallet.jsx: imported wallet_locate_txid; handleLocate detects txid via /^[0-9a-fA-F]{64}$/ and calls appropriate function; derivation path display conditional on addrInfo; placeholder updated
+---
+USER: In get_domain mining widget, "start" shows "9 hours = 0.02 LIF" which is wrong. mine_instant emits the solo target from the block header but instant reward, so mine_stats_calc computes solo win_time paired with instant reward. Should use instant target (solo target / nslice).
+
+CLAUDE: Fixed mine_instant in mine_pool.js to compute instant_target from header target / nslice, and override the target in the emitted update. Now mine_stats_calc receives the correct instant difficulty target, producing accurate win_time (~1 minute) paired with the instant reward (~0.02 LIF). The dev target override path still works correctly.
