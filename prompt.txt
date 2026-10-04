@@ -1644,3 +1644,7 @@ CLAUDE: Fixed mine_instant in mine_pool.js to compute instant_target from header
 USER: Progress bar in get_domain mining widget doesn't show "1 minute = 0.02 LIF" before clicking start.
 
 CLAUDE: The get_domain widget's Mine_progress call was missing the `mode` prop, so mine_defaults couldn't provide fallback values. Added `mode="instant"` to the Mine_progress call in the get_domain widget.
+---
+USER: When inside a wallet or its sub-screens, show the wallet name in the top header instead of "LIF Wallet". Remove the duplicate wallet name from Wallet_screen.
+
+CLAUDE: Changed the top header h1 to show `wallet.ls.name` when a wallet is active, otherwise "LIF Wallet". Removed the `<h2>{label}</h2>` from Wallet_screen since it would duplicate. Cleaned up unused `label` variable.

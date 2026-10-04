@@ -372,7 +372,7 @@ function BrightWallet(){
           }
           <h1 style={{cursor: 'pointer', fontSize: 24, margin: 0, display: 'flex', alignItems: 'center', gap: 8}} onClick={goHome}>
             <img src={import.meta.resolve('./bright.ico')} style={{width: 32, height: 32}} />
-            LIF Wallet
+            {wallet ? wallet.ls.name : 'LIF Wallet'}
           </h1>
         </div>
         <div style={{display: 'flex', gap: 8}}>
@@ -821,15 +821,11 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
   }, [wallet.ls.id, wallet.ls.network, refreshTick]);
 
   const symbol = netconf.symbol;
-  const label = wallet.ls.name;
   return (
     <div>
-      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-        <h2 style={{margin: 0}}>{label}</h2>
-        <div style={{display: 'flex', gap: 8}}>
-          <Mine_on wallet={wallet} onMine={onMine} />
-          <Mine_pool_on wallet={wallet} onMinePool={onMinePool} />
-        </div>
+      <div style={{display: 'flex', gap: 8}}>
+        <Mine_on wallet={wallet} onMine={onMine} />
+        <Mine_pool_on wallet={wallet} onMinePool={onMinePool} />
       </div>
       {connErr && (
         <p style={{color: '#c00', marginTop: 8}}>
