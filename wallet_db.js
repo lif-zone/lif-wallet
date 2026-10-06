@@ -501,7 +501,11 @@ async function _wallet_fetch(wallet){
     a=>a.address==u.address)}));
   cs.utxos = c.utxos.map(({tx_hash, tx_pos, value, address, chain, index})=>
     ({tx_hash, tx_pos, value, address, chain, index}));
-  c.balance = bals.reduce((s, b)=>s+b.confirmed+b.unconfirmed, 0);
+  c.confirmed = bals.reduce((s, b)=>s+b.confirmed, 0);
+  c.unconfirmed = bals.reduce((s, b)=>s+b.unconfirmed, 0);
+  c.balance = c.confirmed+c.unconfirmed;
+  cs.confirmed = c.confirmed;
+  cs.unconfirmed = c.unconfirmed;
   cs.balance = c.balance;
   c.feeRate = await el_estimatefee(netconf);
   cs.feeRate = c.feeRate;

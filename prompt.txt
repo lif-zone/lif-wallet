@@ -1648,3 +1648,7 @@ CLAUDE: The get_domain widget's Mine_progress call was missing the `mode` prop, 
 USER: When inside a wallet or its sub-screens, show the wallet name in the top header instead of "LIF Wallet". Remove the duplicate wallet name from Wallet_screen.
 
 CLAUDE: Changed the top header h1 to show `wallet.ls.name` when a wallet is active, otherwise "LIF Wallet". Removed the `<h2>{label}</h2>` from Wallet_screen since it would duplicate. Cleaned up unused `label` variable.
+---
+USER: In get_domain page, if multiple LIF wallets exist, select the one with highest confirmed balance. If none have confirmed balance, pick highest unconfirmed. Otherwise fall back to first wallet.
+
+CLAUDE: Added `c.confirmed` and `c.unconfirmed` fields to wallet_db.js (cached in cs). Updated `select_lif_wallet` in wallet.jsx to prefer highest confirmed balance, then highest unconfirmed, then first wallet.

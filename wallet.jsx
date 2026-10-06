@@ -112,12 +112,17 @@ function ensure_lif_wallet(){
 // Select the best LIF wallet (highest balance)
 function select_lif_wallet(){
   const lif = OV(wallets_get()).filter(w=>w.ls.network=='lif');
-  let best = lif[0];
-  for (const w of lif){
-    if ((w.c.balance||0) > (best.c.balance||0))
-      best = w;
-  }
-  return best.ls.id;
+  if (lif.length<=1)
+    return lif[0]?.ls.id;
+  let best = lif.reduce((a, b)=>
+    (b.c.confirmed||0)>(a.c.confirmed||0) ? b : a);
+  if ((best.c.confirmed||0)>0)
+    return best.ls.id;
+  best = lif.reduce((a, b)=>
+    (b.c.unconfirmed||0)>(a.c.unconfirmed||0) ? b : a);
+  if ((best.c.unconfirmed||0)>0)
+    return best.ls.id;
+  return lif[0].ls.id;
 }
 
 // Mining Context
