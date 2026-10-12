@@ -5,7 +5,7 @@ import {_el, buf_from_hex, buf_to_hex} from './wallet_db.js';
 import * as bitcoin from 'bitcoinjs-lib';
 import {mine, mine_worker_call, mine_steps,
   hash256_pow, target_from_nhash, target_to_nhash, target_to_compact,
-  header_get_target, header_get_time, header_set_time,
+  header_get_target, header_set_target, header_get_time, header_set_time,
   header_get_nonce, header_set_nonce, target_from_compact,
 } from './mine.js';
 import {tx_out_find, tx_broadcast, tx_send} from './wallet_db.js';
@@ -350,10 +350,11 @@ export function mine_instant_pool({wallet, reward_share, target}){
         let h = Buffer.from(header);
         let time_now = now-time_diff;
         header_set_time(h, time_now);
+        header_set_target(h, pay_target);
         offer = offers[i] = {min: i*slice_sz, max: (i+1)*slice_sz, addr,
           time_local: now, last_update: now, win: []};
         return {reward: pay_reward, fee, nslice,
-          header: buf_to_hex(h), target: target,//pay_target,
+          header: buf_to_hex(h), target, pay_target,
           min: offer.min, max: offer.max};
       });
       sock.method('mine_instant_update', up=>{
