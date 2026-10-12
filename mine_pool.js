@@ -207,9 +207,11 @@ export function mine_instant({netconf, saddr, target}){
   const header = buf_from_hex(template.header);
   const header_target = target || header_get_target(header);
   const win_h = Number(target_to_nhash(target_from_compact(header_target)));
-  const instant_target = template.target;
+  const instant_target = target
+    ? target_to_compact(target_from_nhash(Math.floor(win_h/template.nslice)))
+    : template.target;
   const instant_h = target_from_compact(instant_target);
-  let opt = {pow: netconf.pow, header, target: target ? instant_target : undefined};
+  let opt = {pow: netconf.pow, header, target: instant_target};
   _status('mining');
   let mine_et = mine_steps(opt);
   mine_et.on('update', up=>{
