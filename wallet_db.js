@@ -11,8 +11,7 @@ import {T, OE, OV, OA, CE, CEL, ewait, assert,
   _try, version as util_version, date_time, str, lif_url_tr,
 } from 'lif-kernel/util.js';
 import {rpc_websocket, rpc_sock} from 'lif-kernel/rpc.js';
-import {lifnet, lifnet_online, lifnet_listen,
-} from 'lif-kernel/lifnet';
+import {lifnet} from 'lif-kernel/lifnet';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;

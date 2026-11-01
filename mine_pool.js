@@ -1,6 +1,6 @@
 import {_try, date_time, CEL, ewait, assert} from 'lif-kernel/util.js';
 import etask from 'lif-kernel/etask.js';
-import {lifnet, lifnet_online, lifnet_listen} from 'lif-kernel/lifnet';
+import {lifnet} from 'lif-kernel/lifnet';
 import {_el, buf_from_hex, buf_to_hex} from './wallet_db.js';
 import * as bitcoin from 'bitcoinjs-lib';
 import {mine, mine_worker_call, mine_steps,
@@ -115,7 +115,7 @@ function mine_steps_alt({pow, header, target, min, max}){
 let mine_slave_et;
 export function mine_slave_listen(){ return etask(function*(_et){
   let win_n = 0;
-  let listen = lifnet_listen({topic: 'lifcoin/mine_slave'}, ({msg, sock})=>{
+  let listen = lifnet.listen({topic: 'lifcoin/mine_slave'}, ({msg, sock})=>{
     let {header: header_hex, target, min, max, pow} = msg.params;
     if (pow!='sha256lif')
       return {error: 'invalid pow'};
@@ -325,7 +325,7 @@ export function mine_instant_pool({wallet, reward_share, target}){
     console.log('starting mining pool', template.header);
     do_update();
     this.on('finally', ()=>listen_mine_instant.close());
-    let listen_mine_instant = lifnet_listen({topic: 'mine_instant',
+    let listen_mine_instant = lifnet.listen({topic: 'mine_instant',
       data: {reward: pay_reward, fee, target}},
       ({msg, sock})=>
     {
