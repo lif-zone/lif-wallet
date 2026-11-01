@@ -11,14 +11,14 @@ import {T, OE, OV, OA, CE, CEL, ewait, assert,
   _try, version as util_version, date_time, str, lif_url_tr,
 } from 'lif-kernel/util.js';
 import {rpc_websocket, rpc_sock} from 'lif-kernel/rpc.js';
-import {lifnet_online, lifnet_connect, lifnet_listen, lifnet_set,
+import {lifnet, lifnet_online, lifnet_connect, lifnet_listen,
 } from 'lif-kernel/lifnet';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;
 import etask from 'lif-kernel/etask.js';
 
-lifnet_set({client_name: 'wallet'});
+lifnet.set_opt({client_name: 'wallet'});
 export function buf_from_hex(b){
   if (Buffer.isBuffer(b))
     return Buffer.from(b);
