@@ -11,7 +11,7 @@ import {T, OE, OV, OA, CE, CEL, ewait, assert,
   _try, version as util_version, date_time, str, lif_url_tr,
 } from 'lif-kernel/util.js';
 import {rpc_websocket, rpc_sock} from 'lif-kernel/rpc.js';
-import {lifnet, lifnet_online, lifnet_connect, lifnet_listen,
+import {lifnet, lifnet_online, lifnet_listen,
 } from 'lif-kernel/lifnet';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
@@ -265,7 +265,7 @@ class electrum_rpc {
       let v;
       this.state = 'connect';
       if (v=str.starts(this.url, 'lif:net/')){
-        let {rg, sock, error} = await lifnet_connect(
+        let {rg, sock, error} = await lifnet.connect(
           v.rest, null, {jsonrpc: '2.0', D: 1});
         this.rpc = sock;
         if (error)

@@ -1,6 +1,6 @@
 import {_try, date_time, CEL, ewait, assert} from 'lif-kernel/util.js';
 import etask from 'lif-kernel/etask.js';
-import {lifnet_online, lifnet_connect, lifnet_listen} from 'lif-kernel/lifnet';
+import {lifnet, lifnet_online, lifnet_listen} from 'lif-kernel/lifnet';
 import {_el, buf_from_hex, buf_to_hex} from './wallet_db.js';
 import * as bitcoin from 'bitcoinjs-lib';
 import {mine, mine_worker_call, mine_steps,
@@ -152,7 +152,7 @@ export function mine_slave_listen(){ return etask(function*(_et){
 export function mine_slave({pow, header, min, max, target}){
   return etask(function*()
 {
-  let {sock, error} = yield lifnet_connect('lifcoin/mine_slave',
+  let {sock, error} = yield lifnet.connect('lifcoin/mine_slave',
     {header: buf_to_hex(header), target, min, max, pow});
   if (error)
     return {found: false, error};
@@ -185,7 +185,7 @@ export function mine_instant({netconf, saddr, target}){
   };
   const _status = status=>this.emit('status', {status});
   _status('searching for pool servers');
-  let {rg, sock, error} = yield lifnet_connect('mine_instant',
+  let {rg, sock, error} = yield lifnet.connect('mine_instant',
     {rg_block: rg=>rg.mine_instant?.cheat});
   if (error)
     return _err('no mining servers online - try Solo mining ('+error+')');
