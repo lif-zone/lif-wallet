@@ -16,6 +16,9 @@ let lif = globalThis.$lif ||= {};
 lif.assert = assert;
 const sha256 = bitcoin.crypto.sha256;
 import etask from 'lif-kernel/etask.js';
+import {wc_locate_addr} from './wallet_chain.js';
+
+let wallet_chain_api = localStorage.getItem('wallet_chain_api');
 
 lifnet.set_opt({client_name: 'wallet'});
 export function buf_from_hex(b){
