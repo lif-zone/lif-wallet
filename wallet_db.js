@@ -18,7 +18,7 @@ const sha256 = bitcoin.crypto.sha256;
 import etask from 'lif-kernel/etask.js';
 import {wc_locate_addr} from './wallet_chain.js';
 
-let wallet_chain_api = localStorage.getItem('wallet_chain_api');
+let use_wc = localStorage.getItem('use_wc');
 
 lifnet.set_opt({client_name: 'wallet'});
 export function buf_from_hex(b){
@@ -950,6 +950,8 @@ export function wallet_locate_txid(txid){
 
 // Returns {wallet, txs, walletAddrs, addrInfo} if addr found in any wallet, or null
 export function wallet_locate_addr(addr){
+  if (use_wc)
+    return wc_locate_addr(addr);
   for (const wallet of OV(g_wallets)){
     const addrs = wallet.c?.addrs||[];
     const addrInfo = addrs.find(a=>a.address==addr);
