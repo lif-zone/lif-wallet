@@ -1,0 +1,62 @@
+SPV wallet via Electrum protocol (wallet_chain.js)
+===================================================
+
+Step 1: Header chain store
+- IndexedDB table `headers` keyed by height -> {height, hash, prevHash,
+  merkleRoot, time, bits, nonce, raw}
+- On init: load tip height + last N headers from DB
+- wc_sync_headers(): fetch headers from electrum (blockchain.block.headers) in
+  batches, validate each: PoW valid, prevHash links to previous, bits match
+  expected target
+- Two settings: HEADERS_FORWARD (e.g. 6) and HEADERS_BACKWARD (e.g. 100) - how
+  far ahead/behind the wallet's relevant blocks to download headers for chain
+  validation
+
+Step 2: TX store with merkle proofs
+- IndexedDB table `txs` keyed by txid -> {txid, raw_or_verbose, height,
+  merkle_proof, verified}
+- IndexedDB table `scripthash_history` keyed by scripthash ->
+  [{tx_hash, height}]
+- wc_store_tx(txid, height): fetch TX via blockchain.transaction.get, fetch
+  merkle proof via blockchain.transaction.get_merkle, store both
+- Verification: compute merkle root from proof, compare against stored header's
+  merkleRoot at that height
+
+Step 3: UTXO + balance from local DB
+- Derive UTXOs and balances from locally stored+verified TXs instead of querying
+  electrum each time
+- wc_get_balance(wallet): scan local TX DB for wallet addresses, compute
+  confirmed/unconfirmed
+- wc_listunspent(wallet): scan local TXs, find unspent outputs for wallet
+  addresses
+
+Step 4: Background sync
+- On startup: show cached data from DB immediately
+- Subscribe to blockchain.headers.subscribe for new tip
+- Subscribe to blockchain.scripthash.subscribe for each wallet address
+- On new tip: fetch new headers, verify chain continuity
+- On scripthash notification: fetch new history diff, fetch+verify new TXs with
+  merkle proofs
+- Emit updates to UI as data arrives
+
+Step 5: Wire into wallet_db.js
+- Replace _wallet_fetch guts when use_wc is set:
+  - hd_scan -> use local scripthash_history (with background electrum diff)
+  - sh_get_balance / sh_listunspent -> local DB computation
+  - tx_get -> local TX store
+  - block_header -> local header store
+- Each function: return cached data first, trigger background sync, emit update
+  when fresh data arrives
+
+Step 6: Reorg handling
+- On new tip: if new header's prevHash doesn't match our stored tip, walk back
+  to find common ancestor
+- Mark TXs in orphaned blocks as unverified
+- Re-verify TXs against new chain headers
+
+Implementation order
+--------------------
+1 -> 2 -> 5 (minimal: headers + TX store + wiring, already functional)
+-> 3 (local balance/UTXO)
+-> 4 (subscriptions + background sync)
+-> 6 (reorg handling)
