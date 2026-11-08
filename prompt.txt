@@ -1652,3 +1652,6 @@ CLAUDE: Changed the top header h1 to show `wallet.ls.name` when a wallet is acti
 USER: In get_domain page, if multiple LIF wallets exist, select the one with highest confirmed balance. If none have confirmed balance, pick highest unconfirmed. Otherwise fall back to first wallet.
 
 CLAUDE: Added `c.confirmed` and `c.unconfirmed` fields to wallet_db.js (cached in cs). Updated `select_lif_wallet` in wallet.jsx to prefer highest confirmed balance, then highest unconfirmed, then first wallet.
+---
+USER: Implement step 0 of SPV wallet plan - extract shared code to settings.js and electrum.js
+CLAUDE: Created settings.js (network configs, HD helpers, buffer utils, addr_sh, addr_valid, g_settings, settings load/save/fetch, db_init/db_get/db_put/cache_clear/cache_ver) and electrum.js (electrum_rpc class, _el(), plus new SPV methods: block_headers, headers_subscribe, sh_subscribe, tx_get_merkle). Updated wallet_db.js to import from both, re-export what wallet.jsx needs. Renamed cache_clear to wallet_cache_clear in wallet_db.js/wallet.jsx. Updated mine_pool.js imports. No circular deps - wallet_chain.js can now import from settings.js and electrum.js.

@@ -1,344 +1,29 @@
 // wallet_db.js - bright wallet database and network
 import * as bitcoin from 'bitcoinjs-lib';
-import * as bip39 from 'bip39';
-import ecc from '@bitcoinerlab/secp256k1';
-import {BIP32Factory} from 'bip32';
-const bip32 = BIP32Factory(ecc);
-import {ECPairFactory} from 'ecpair';
-const ecpair = ECPairFactory(ecc);
-import {openDB} from 'idb';
 import {T, OE, OV, OA, CE, CEL, ewait, assert,
   _try, version as util_version, date_time, str, lif_url_tr,
 } from 'lif-kernel/util.js';
-import {rpc_websocket, rpc_sock} from 'lif-kernel/rpc.js';
 import {lifnet} from 'lif-kernel/lifnet';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
-const sha256 = bitcoin.crypto.sha256;
 import etask from 'lif-kernel/etask.js';
+import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, DUST_VAL, g_settings,
+  netconf_def, LIF_SERVER_DEF, settings_load, settings_save, settings_get,
+  settings_cs_load, settings_cs_fetch, lif_server_get, lif_server_set,
+  addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
+} from './settings.js';
+import {db_init, db_get, db_put, cache_clear, cache_ver} from './db_util.js';
+import {_el} from './electrum.js';
 import {wc_locate_addr} from './wallet_chain.js';
+
+export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
+  settings_cs_fetch, lif_server_get, lif_server_set,
+  addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
+  _el};
 
 let use_wc = localStorage.getItem('use_wc');
 
 lifnet.set_opt({client_name: 'wallet'});
-export function buf_from_hex(b){
-  if (Buffer.isBuffer(b))
-    return Buffer.from(b);
-  return Buffer.from(b, 'hex');
-}
-export function buf_to_hex(b){
-  b = Buffer.from(b);
-  return b.toString('hex');
-}
-const HD_SCAN_GAP = 20;
-const DUST_VAL = 1;
-
-// add Lif network, from lif-coin/lib/protocol/networks.js
-let networks_lif = {
-  bech32: 'lif',
-  bip32: {
-    public: 0x019da4e0,
-    private: 0x019da380,
-  },
-  pubKeyHash: 0x00,
-  scriptHash: 0x05,
-  wif: 0x80,
-  messagePrefix: '\x18Bitcoin Signed Message:\n',
-};
-let networks_liftest = {
-  bech32: 'liftest',
-  bip32: {
-    public: 0x019da4e0,
-    private: 0x019da380,
-  },
-  pubKeyHash: 0x00,
-  scriptHash: 0x05,
-  wif: 0x80,
-  messagePrefix: '\x18Bitcoin Signed Message:\n',
-};
-
-const netconf_def = {
-  lif: {
-    name: 'Lifcoin', // Life Chai
-    symbol: 'LIF',
-    network: networks_lif,
-    electrum: 'lif:net/lifcoin/electrum',
-    //electrum: '/.lif.net/electrum',
-    //electrum: '/.lif.net/electrum-proxy',
-    explorer_tx: lif_url_tr('http://explorer.lif/tx/'),
-    coin_type: 1842,
-    fee_def: 5000000, // 1MB = 50LIF
-    lif_kv: true,
-    pow: 'sha256lif',
-    pow_hps: 50000, // Hash/Sec: android ~60,000 hps, Desktop ~100,000 hps
-    usd: 1,
-  },
-  liftest: {
-    name: 'Lifcoin Testnet',
-    symbol: 'tLIF',
-    network: networks_liftest,
-    electrum: 'lif:net/lifcoin_test/electrum',
-    //electrum: '/.lif.net/electrum_test',
-    explorer_tx: lif_url_tr('https://explorer.lif/tx/'),
-    coin_type: 1,
-    fee_def: 5000000, // 1MB = 50LIF
-    lif_kv: true,
-    pow: 'sha256lif',
-    pow_hps: 50000, // Hash/Sec: android ~60,000 hps, Desktop ~100,000 hps
-    test: true,
-    usd: 1,
-  },
-  btc: {
-    name: 'Bitcoin',
-    symbol: 'BTC',
-    network: bitcoin.networks.bitcoin,
-    electrum: 'lif:net/bitcoin/electrum',
-    //electrum: 'wss://bitcoinserver.nl:50004', // unrestricted
-    //electrum: 'wss://electrumx.nimiq.com:443/electrumx', // restricted from localhost:5000
-    //electrum: 'wss://electrum.blockstream.info:700', // does not work
-    //electrum: 'tcp:electrum1.bluewallet.io:50001', // untested
-    //electrum: 'ssl:electrum1.bluewallet.io:443', // untested
-    explorer_tx: 'https://mempool.space/tx/',
-    coin_type: 0,
-    fee_def: 1000, // 1MB = 0.01BTC
-    usd: 50000,
-  },
-  btc_testnet: {
-    name: 'Bitcoin Testnet',
-    symbol: 'tBTC',
-    network: bitcoin.networks.testnet,
-    electrum: 'lif:net/bitcoin_test/electrum',
-    //electrum: 'wss://electrum.blockstream.info:993',
-    explorer_tx: 'https://mempool.space/testnet/tx/',
-    coin_type: 1,
-    fee_def: 1000,
-    test: true,
-    usd: 0.01,
-  },
-};
-
-export const LIF_SERVER_DEF = 'http://localhost:8432';
-
-function ws_origin(){
-  let protocol = location.protocol=='http:' ? 'ws:' :
-    location.protocol=='https:' ? 'wss:' : assert();
-  return protocol+'//'+location.host;
-}
-
-async function get_btc_usd() {
-  const [cg, binance, cb] = await Promise.all([
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd').then(r => r.json()),
-    fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT').then(r => r.json()),
-    fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker').then(r => r.json())
-  ]);
-  const prices = {
-    coingecko: cg?.bitcoin?.usd,
-    binance: +binance?.price,
-    coinbase: +cb?.price,
-  };
-  // find median
-  let p = OV(prices).filter(v=>v).sort();
-  p = p.filter(v=>v>=10000); // sanity check BTC > 10,000 USD
-  if (!p.length)
-    return;
-  if (p.length==1)
-    return p[0];
-  if (p.length==2)
-    return (p[0]+p[1])/2;
-  let i = Math.floor(p.length/2);
-  return p[i];
-}
-
-async function settings_cs_load(){
-  let s = g_settings;
-  let cs = await db_get('settings_cache');
-  if (cs && cs.cache_ver!=cache_ver){
-    console.log(`cache_ver changed ${cs.cache_ver} -> ${cache_ver}`);
-    cs = null;
-  }
-  if (!cs)
-    cs = {cache_ver};
-  s.cs ||= cs;
-  cs.coin ||= {};
-  for (const [k, nc] of OE(s.netconf)){
-    let coin = cs.coin[k] ||= {};
-    if (coin.usd)
-      nc.usd = coin.usd;
-  }
-}
-
-async function settings_cs_save(){
-  let s = g_settings;
-  await db_put('settings_cache', s.cs);
-}
-
-export async function settings_cs_fetch(){
-  let s = g_settings;
-  let price_usd = await get_btc_usd();
-  if (price_usd)
-    s.cs.coin.btc.usd = price_usd;
-  await settings_cs_save();
-  await settings_cs_load();
-}
-
-const g_settings = {};
-async function settings_load(){
-  g_settings.ls = T(()=>JSON.parse(localStorage.getItem('settings'))) || {};
-  const s = g_settings;
-  const {ls} = g_settings;
-  ls.lif_server ||= LIF_SERVER_DEF;
-  ls.devtools = !! ls.devtools;
-  ls.netconf ||= {};
-  s.netconf = {};
-  s.netconf_def = netconf_def;
-  for (const [k, nc_def] of OE(netconf_def)){
-    let netconf = s.netconf[k] = {...nc_def};
-    ls.netconf[k] ||= {};
-    OA(netconf, ls.netconf[k]);
-    netconf.network.netconf = netconf;
-  }
-  for (const [k, netconf] of OE(s.netconf)){
-    let mnemonic = 'all all all all all all all all all all all all';
-    let addrInfo = hd_wallet(mnemonic, k);
-    netconf.mock = {
-      mnemonic,
-      tx_hash: buf_from_hex('1a'.repeat(32)),
-      address: addrInfo.address,
-      keyPair: addrInfo.keyPair,
-    };
-  }
-  await settings_cs_load();
-  return g_settings;
-}
-
-export function settings_save(){
-  const s = g_settings;
-  const {ls} = g_settings;
-  for (const [k, nc_def] of OE(netconf_def))
-    s.netconf[k].electrum = ls.netconf[k].electrum||nc_def.electrum;
-  localStorage.setItem('settings', JSON.stringify(g_settings.ls));
-}
-
-export function settings_get(){
-  return g_settings;
-}
-
-export function lif_server_get(){
-  return g_settings.ls.lif_server;
-}
-export function lif_server_set(val){
-  g_settings.ls.lif_server = val;
-  settings_save();
-}
-
-const g_electrum = {};
-const RETRY_MS = 1000;
-class electrum_rpc {
-  url;
-  rpc;
-  error;
-  state = 'offline';
-  wait;
-  last;
-  constructor({url}){
-    this.url = url;
-    if (url[0]=='/')
-      url = ws_origin()+url;
-    this.url = url;
-  }
-  async connect(){
-    const set_error = (error)=>{
-      console.error('rpc_connect', error);
-      this.error = error;
-      this.close();
-      this.wait.return({error});
-      this.wait = null;
-      return {error};
-    };
-    if (this.state=='online')
-      return this.rpc;
-    if (this.wait)
-      return await this.wait;
-    if (Date.now()-(this.last||0)<RETRY_MS)
-      return {error: 'connect wait retry: '+this.error};
-    this.wait = ewait();
-    this.last = Date.now();
-    try {
-      let v;
-      this.state = 'connect';
-      if (v=str.starts(this.url, 'lif:net/')){
-        let {rg, sock, error} = await lifnet.connect(
-          v.rest, null, {jsonrpc: '2.0', D: 1});
-        this.rpc = sock;
-        if (error)
-          return set_error(error);
-      } else {
-        this.rpc = new rpc_websocket({jsonrpc: '2.0', D: 1});
-        await this.rpc.connect({url: this.url});
-      }
-      this.rpc.on('close', ()=>set_error('close'));
-    } catch(error){
-      return set_error('rpc_connect: '+error);
-    }
-    try {
-      this.server_version = await this.rpc.T_call('server.version',
-        ['lif-coin-wallet', '1.4']);
-      this.server_banner = await this.rpc.T_call('server.banner');
-    } catch(e){
-      return set_error('server version rpc: '+e);
-    }
-    this.state = 'online';
-    return this.wait.return(this.rpc);
-  }
-  async T_call(method, ...params){
-    let ret = await this.connect();
-    if (ret.error)
-      return ret;
-    return await this.rpc.T_call(method, params);
-  }
-  close(){
-    if (this.rpc)
-      this.rpc.close();
-    this.rpc = null;
-    this.state = 'close';
-  }
-  async tx_get(tx_hash, verb){
-    return await this.T_call('blockchain.transaction.get', tx_hash, verb);
-  }
-  async tx_broadcast(txraw){
-    return await this.T_call('blockchain.transaction.broadcast', txraw);
-  }
-  async sh_get_balance(sh){
-    return await this.T_call('blockchain.scripthash.get_balance', sh);
-  }
-  async sh_get_history(sh){
-    return await this.T_call('blockchain.scripthash.get_history', sh);
-  }
-  async sh_listunspent(sh){
-    return await this.T_call('blockchain.scripthash.listunspent', sh);
-  }
-  async block_header(height){
-    return await this.T_call('blockchain.block.header', height);
-  }
-  async estimatefee(nblocks){
-    return await this.T_call('blockchain.estimatefee', nblocks);
-  }
-  async lif_kv_get(key){
-    return await this.T_call('blockchain.lif_kv.get', key);
-  }
-  async mine_get_template(saddr){
-    return await this.T_call('blockchain.mine.get_template', saddr);
-  }
-  async mine_submit_header(header){
-    return await this.T_call('blockchain.mine.submit_header', header);
-  }
-}
-
-export function _el(netconf){
-  let url = netconf.electrum;
-  let el = g_electrum[url] ||= new electrum_rpc({url});
-  return el;
-}
 
 // id → single wallet object instance (mutated in place)
 const g_wallets = {};
@@ -403,34 +88,14 @@ export function wallet_del(id){
   wallets_save();
 }
 
-// IndexedDB Cache
-let db;
-async function db_init(){
-  db = await openDB('bright-wallet', 1, {
-    upgrade(db){
-      db.createObjectStore('cache');
-    }
-  });
-}
-export async function db_get(id){
-  try {
-    return await db.get('cache', id) ?? null;
-  } catch{ return null; }
-}
-export async function db_put(id, data){
-  try {
-    await db.put('cache', data, id);
-  } catch{}
-}
-export async function cache_clear(){
-  try { await db.clear('cache'); } catch{}
-  for (const w of g_wallets){
+export async function wallet_cache_clear(){
+  await cache_clear();
+  for (const w of OV(g_wallets)){
     w.c = {};
     w.cs = {};
   }
 }
 
-const cache_ver = '2';
 // Populate wallet with cached data from IndexedDB (re-derives keyPairs from
 // mnemonic). Idempotent: does nothing if wallet already has
 // data (wallet.c.addrs defined).
@@ -612,35 +277,11 @@ export async function wallet_fetch(wallet, force){
   return wait.return(await _wallet_fetch(wallet));
 }
 
-export function hd_root(mnemonic, network, passphrase=''){
-  return bip32.fromSeed(bip39.mnemonicToSeedSync(mnemonic, passphrase), network);
-}
 function wallet_root(wallet){
   const {ls, c, netconf} = wallet;
   if (c.root)
     return c.root;
   return c.root = hd_root(ls.mnemonic, netconf.network, ls.passphrase||'');
-}
-
-export function hd_path_def(netconf){
-  return `m/84'/${netconf.coin_type}'/0'`;
-}
-
-export function hd_addr(network, root, accountPath, chain, index){
-  const child = root.derivePath(`${accountPath}/${chain}/${index}`);
-  const pubkey = child.publicKey;
-  const {address} = bitcoin.payments.p2wpkh({pubkey, network});
-  const keyPair = ecpair.fromPrivateKey(child.privateKey, {network});
-  return {address, keyPair, chain, index};
-}
-
-export function hd_wallet(mnemonic, net_id, passphrase='', derivPath){
-  const netconf = g_settings.netconf[net_id];
-  const network = netconf.network;
-  const root = hd_root(mnemonic, network, passphrase);
-  const accountPath = derivPath || hd_path_def(netconf);
-  const {address, keyPair} = hd_addr(network, root, accountPath, 0, 0);
-  return {address, keyPair, network, netconf, root};
 }
 
 // Scan used addresses on chain (0=external, 1=change) with gap limit of 20.
@@ -671,13 +312,6 @@ export async function hd_scan(netconf, root, accountPath, chain){
     start += GAP;
   }
   return {used, nextIndex: lastUsed+1};
-}
-
-// convert address to scripthash (electrum usess scripthash for addresses)
-export function addr_sh(saddr, network){
-  const script = bitcoin.address.toOutputScript(saddr, network);
-  const hash = sha256(script);
-  return buf_to_hex(hash.reverse());
 }
 
 export async function el_estimatefee(netconf){
@@ -718,15 +352,6 @@ export function hd_addr_find(root, accountPath, network, saddr_find){
       if (info.address==saddr_find)
         return info;
     }
-  }
-}
-
-export function addr_valid(network, addr){
-  try {
-    bitcoin.address.toOutputScript(addr, network);
-    return true;
-  } catch(e){
-    return false;
   }
 }
 

@@ -14,7 +14,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   wallet_add, wallet_del, wallet_update, wallets_get, wallet_get,
   hd_wallet, hd_path_def, hd_root, hd_addr, addr_valid,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
-  cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
+  wallet_cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
   buf_to_hex,
 } from './wallet_db.js';
@@ -539,7 +539,7 @@ function BrightWallet(){
       )}
       {screen=='devtools' && (
         <Devtools_screen
-          onCacheClear={async()=>{ await cache_clear(); setCacheVer(v=>v+1); }}
+          onCacheClear={async()=>{ await wallet_cache_clear(); setCacheVer(v=>v+1); }}
           onBack={()=>setScreen('settings')}
         />
       )}

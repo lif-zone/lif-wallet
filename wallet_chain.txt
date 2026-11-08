@@ -54,9 +54,18 @@ Step 6: Reorg handling
 - Mark TXs in orphaned blocks as unverified
 - Re-verify TXs against new chain headers
 
+Step 0: Extract shared code to avoid circular deps
+- settings.js: network configs (networks_lif, networks_liftest, g_settings,
+  netconf defaults), buf_from_hex(), buf_to_hex(), addr_sh(), hd_addr(),
+  hd_path_def(), hd_root(), HD_SCAN_GAP, DUST_VAL
+- electrum.js: electrum_rpc class, g_electrum, _el(), ws_origin()
+- wallet_db.js: imports from settings.js + electrum.js (no longer exports those)
+- wallet_chain.js: imports from settings.js + electrum.js (no circular dep)
+
 Implementation order
 --------------------
-1 -> 2 -> 5 (minimal: headers + TX store + wiring, already functional)
+0 (extract settings.js + electrum.js)
+-> 1 -> 2 -> 5 (minimal: headers + TX store + wiring, already functional)
 -> 3 (local balance/UTXO)
 -> 4 (subscriptions + background sync)
 -> 6 (reorg handling)

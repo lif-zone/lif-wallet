@@ -1,7 +1,8 @@
 import {_try, date_time, CEL, ewait, assert} from 'lif-kernel/util.js';
 import etask from 'lif-kernel/etask.js';
 import {lifnet} from 'lif-kernel/lifnet';
-import {_el, buf_from_hex, buf_to_hex} from './wallet_db.js';
+import {buf_from_hex, buf_to_hex} from './settings.js';
+import {_el} from './electrum.js';
 import * as bitcoin from 'bitcoinjs-lib';
 import {mine, mine_worker_call, mine_steps,
   hash256_pow, target_from_nhash, target_to_nhash, target_to_compact,
