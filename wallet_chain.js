@@ -4,7 +4,7 @@ import {_el} from './electrum.js';
 import {hash256_pow, target_buf, target_rcmp} from './mine.js';
 import {hdr_get, hdr_put, hdr_get_tip, tx_get, tx_put,
   sh_history_get, sh_history_put} from './db_util.js';
-import sha256 from 'lif-kernel/sha256.js';
+import sha256 from 'lif-kernel/sha256';
 
 const HEADERS_FORWARD = 6;
 const HEADERS_BACKWARD = 100;

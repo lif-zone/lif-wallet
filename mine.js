@@ -1,6 +1,6 @@
 // LICENSE_CODE JPL mine.js - browser mining api
-import sha256lif from 'lif-kernel/sha256lif.js';
-import sha256 from 'lif-kernel/sha256.js';
+import sha256lif from 'lif-kernel/sha256lif';
+import sha256 from 'lif-kernel/sha256';
 import {ewait, esleep, assert, date_time} from 'lif-kernel/util.js';
 import {ipc_postmessage} from 'lif-kernel/rpc.js';
 import etask from 'lif-kernel/etask';
