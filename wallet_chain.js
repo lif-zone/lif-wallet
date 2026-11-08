@@ -59,7 +59,9 @@ export async function wc_init(netconf){
   return st;
 }
 
-// Sync headers from electrum. Fetches from current tip to chain tip.
+const BATCH_SIZE = 2016;
+
+// Sync headers from electrum. Fetches in batches.
 export async function wc_sync_headers(netconf){
   let st = get_state(netconf);
   let el = _el(netconf);
@@ -69,26 +71,35 @@ export async function wc_sync_headers(netconf){
   let chain_height = sub.height;
   let start = st.tip ? st.tip.height+1 : 0;
   let pow = netconf.pow;
-  let count = 0;
-  for (let h=start; h<=chain_height; h++){
-    let raw_hex = await el.block_header(h);
-    if (raw_hex.error)
-      return {error: 'block_header '+h+': '+raw_hex.error};
-    let hdr = hdr_parse(raw_hex, h);
-    hdr.hash = hdr_hash(raw_hex, pow);
-    if (!hdr_verify_pow(raw_hex, pow))
-      return {error: 'invalid pow at height '+h};
-    if (st.tip && hdr.prevHash!=st.tip.hash)
-      return {error: 'prevHash mismatch at height '+h};
-    await hdr_put(h, hdr);
-    st.tip = hdr;
-    count++;
-    if (count%100==0)
-      console.log('wc_sync_headers: '+h+'/'+chain_height);
+  let total = 0;
+  while (start<=chain_height){
+    let want = Math.min(BATCH_SIZE, chain_height-start+1);
+    let res = await el.block_headers(start, want);
+    if (res.error)
+      return {error: 'block_headers '+start+': '+res.error};
+    let {hex, count} = res;
+    if (!count)
+      break;
+    for (let i=0; i<count; i++){
+      let raw_hex = hex.slice(i*HEADER_SIZE*2, (i+1)*HEADER_SIZE*2);
+      let h = start+i;
+      let hdr = hdr_parse(raw_hex, h);
+      hdr.hash = hdr_hash(raw_hex, pow);
+      if (!hdr_verify_pow(raw_hex, pow))
+        return {error: 'invalid pow at height '+h};
+      if (st.tip && hdr.prevHash!=st.tip.hash)
+        return {error: 'prevHash mismatch at height '+h};
+      await hdr_put(h, hdr);
+      st.tip = hdr;
+      total++;
+    }
+    start += count;
+    if (total%100==0 || start>chain_height)
+      console.log('wc_sync_headers: '+start+'/'+chain_height);
   }
-  if (count)
-    console.log('wc_sync_headers: synced '+count+' headers to '+chain_height);
-  return {height: chain_height, count};
+  if (total)
+    console.log('wc_sync_headers: synced '+total+' headers to '+chain_height);
+  return {height: chain_height, count: total};
 }
 
 // Get a stored header by height
