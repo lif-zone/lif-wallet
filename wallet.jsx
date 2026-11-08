@@ -4,7 +4,7 @@ import React, {useState, useEffect, useMemo, useRef, createContext,
 } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
-import etask from 'lif-kernel/etask.js';
+import etask from 'lif-kernel/etask';
 import {OE, OV, OA, ewait, esleep, CE, CEL, json, assert, str}
   from 'lif-kernel/util.js';
 import {ipc_postmessage} from 'lif-kernel/rpc.js';

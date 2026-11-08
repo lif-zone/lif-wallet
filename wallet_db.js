@@ -6,7 +6,7 @@ import {T, OE, OV, OA, CE, CEL, ewait, assert,
 import {lifnet} from 'lif-kernel/lifnet';
 let lif = globalThis.$lif ||= {};
 lif.assert = assert;
-import etask from 'lif-kernel/etask.js';
+import etask from 'lif-kernel/etask';
 import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, DUST_VAL, g_settings,
   netconf_def, LIF_SERVER_DEF, settings_load, settings_save, settings_get,
   settings_cs_load, settings_cs_fetch, lif_server_get, lif_server_set,

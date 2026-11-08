@@ -1,5 +1,5 @@
 import {_try, date_time, CEL, ewait, assert} from 'lif-kernel/util.js';
-import etask from 'lif-kernel/etask.js';
+import etask from 'lif-kernel/etask';
 import {lifnet} from 'lif-kernel/lifnet';
 import {buf_from_hex, buf_to_hex} from './settings.js';
 import {_el} from './electrum.js';
