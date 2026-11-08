@@ -4,7 +4,6 @@ import {_el} from './electrum.js';
 import {hash256_pow, target_buf, target_rcmp} from './mine.js';
 import {hdr_get, hdr_put, hdr_get_tip, tx_get, tx_put,
   sh_history_get, sh_history_put} from './db_util.js';
-import sha256 from 'lif-kernel/sha256';
 
 const HEADERS_FORWARD = 6;
 const HEADERS_BACKWARD = 100;
@@ -99,20 +98,12 @@ export async function wc_get_header(height){
 
 // Step 2: TX store with merkle proofs
 
-// Double-SHA256 (merkle tree always uses this, not sha256lif)
-function dsha256(buf){
-  return sha256.digest(sha256.digest(buf));
-}
-
 // Compute merkle root from txid + proof path + position
-function merkle_root_from_proof(txid, merkle, pos){
+function merkle_root_from_proof(pow, txid, merkle, pos){
   let hash = buf_from_hex(txid).reverse();
   for (let sibling of merkle){
     let s = buf_from_hex(sibling).reverse();
-    if (pos&1)
-      hash = dsha256(Buffer.concat([s, hash]));
-    else
-      hash = dsha256(Buffer.concat([hash, s]));
+    hash = hash256_pow(pow, Buffer.concat(pos&1 ? [s, hash] : [hash, s]));
     pos >>= 1;
   }
   return buf_to_hex(Buffer.from(hash).reverse());
@@ -128,7 +119,7 @@ export async function wc_store_tx(netconf, txid, height){
   if (merkle_res?.error)
     return {error: 'tx_get_merkle '+txid+': '+merkle_res.error};
   let {merkle, pos} = merkle_res;
-  let computed_root = merkle_root_from_proof(txid, merkle, pos);
+  let computed_root = merkle_root_from_proof(netconf.pow, txid, merkle, pos);
   let hdr = await hdr_get(height);
   let verified = false;
   if (hdr && hdr.merkleRoot==computed_root)
@@ -139,14 +130,15 @@ export async function wc_store_tx(netconf, txid, height){
 }
 
 // Verify a stored TX against its header (e.g. after syncing new headers)
-export async function wc_verify_tx(txid){
+export async function wc_verify_tx(netconf, txid){
   let entry = await tx_get(txid);
   if (!entry)
     return {error: 'tx not found'};
   let hdr = await hdr_get(entry.height);
   if (!hdr)
     return {error: 'header not found at height '+entry.height};
-  let computed_root = merkle_root_from_proof(txid, entry.merkle, entry.pos);
+  let computed_root = merkle_root_from_proof(netconf.pow, txid, entry.merkle,
+    entry.pos);
   entry.verified = hdr.merkleRoot==computed_root;
   await tx_put(txid, entry);
   return entry;
