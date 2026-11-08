@@ -3,12 +3,16 @@ import {openDB} from 'idb';
 
 let db;
 export async function db_init(){
-  db = await openDB('bright-wallet', 2, {
+  db = await openDB('bright-wallet', 3, {
     upgrade(db, old_ver){
       if (old_ver<1)
         db.createObjectStore('cache');
       if (old_ver<2)
         db.createObjectStore('headers');
+      if (old_ver<3){
+        db.createObjectStore('txs');
+        db.createObjectStore('sh_history');
+      }
     }
   });
 }
@@ -25,6 +29,18 @@ export async function hdr_get_tip(){
 }
 export async function hdr_get_range(from, to){
   return await db.getAll('headers', IDBKeyRange.bound(from, to));
+}
+export async function tx_get(txid){
+  return await db.get('txs', txid) ?? null;
+}
+export async function tx_put(txid, data){
+  await db.put('txs', data, txid);
+}
+export async function sh_history_get(sh){
+  return await db.get('sh_history', sh) ?? null;
+}
+export async function sh_history_put(sh, data){
+  await db.put('sh_history', data, sh);
 }
 export async function db_get(id){
   try {

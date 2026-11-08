@@ -2,7 +2,9 @@
 import {buf_from_hex, buf_to_hex} from './settings.js';
 import {_el} from './electrum.js';
 import {hash256_pow, target_buf, target_rcmp} from './mine.js';
-import {hdr_get, hdr_put, hdr_get_tip} from './db_util.js';
+import {hdr_get, hdr_put, hdr_get_tip, tx_get, tx_put,
+  sh_history_get, sh_history_put} from './db_util.js';
+import sha256 from 'lif-kernel/sha256.js';
 
 const HEADERS_FORWARD = 6;
 const HEADERS_BACKWARD = 100;
@@ -93,6 +95,81 @@ export async function wc_sync_headers(netconf){
 // Get a stored header by height
 export async function wc_get_header(height){
   return await hdr_get(height);
+}
+
+// Step 2: TX store with merkle proofs
+
+// Double-SHA256 (merkle tree always uses this, not sha256lif)
+function dsha256(buf){
+  return sha256.digest(sha256.digest(buf));
+}
+
+// Compute merkle root from txid + proof path + position
+function merkle_root_from_proof(txid, merkle, pos){
+  let hash = buf_from_hex(txid).reverse();
+  for (let sibling of merkle){
+    let s = buf_from_hex(sibling).reverse();
+    if (pos&1)
+      hash = dsha256(Buffer.concat([s, hash]));
+    else
+      hash = dsha256(Buffer.concat([hash, s]));
+    pos >>= 1;
+  }
+  return buf_to_hex(Buffer.from(hash).reverse());
+}
+
+// Fetch TX + merkle proof from electrum, verify against stored header, store
+export async function wc_store_tx(netconf, txid, height){
+  let el = _el(netconf);
+  let raw = await el.tx_get(txid, false);
+  if (raw?.error)
+    return {error: 'tx_get '+txid+': '+raw.error};
+  let merkle_res = await el.tx_get_merkle(txid, height);
+  if (merkle_res?.error)
+    return {error: 'tx_get_merkle '+txid+': '+merkle_res.error};
+  let {merkle, pos} = merkle_res;
+  let computed_root = merkle_root_from_proof(txid, merkle, pos);
+  let hdr = await hdr_get(height);
+  let verified = false;
+  if (hdr && hdr.merkleRoot==computed_root)
+    verified = true;
+  let entry = {txid, raw, height, merkle, pos, verified};
+  await tx_put(txid, entry);
+  return entry;
+}
+
+// Verify a stored TX against its header (e.g. after syncing new headers)
+export async function wc_verify_tx(txid){
+  let entry = await tx_get(txid);
+  if (!entry)
+    return {error: 'tx not found'};
+  let hdr = await hdr_get(entry.height);
+  if (!hdr)
+    return {error: 'header not found at height '+entry.height};
+  let computed_root = merkle_root_from_proof(txid, entry.merkle, entry.pos);
+  entry.verified = hdr.merkleRoot==computed_root;
+  await tx_put(txid, entry);
+  return entry;
+}
+
+// Fetch and store scripthash history from electrum
+export async function wc_sync_sh_history(netconf, sh){
+  let el = _el(netconf);
+  let history = await el.sh_get_history(sh);
+  if (history?.error)
+    return {error: 'sh_get_history: '+history.error};
+  await sh_history_put(sh, history);
+  return history;
+}
+
+// Get stored scripthash history
+export async function wc_get_sh_history(sh){
+  return await sh_history_get(sh);
+}
+
+// Get stored TX
+export async function wc_get_tx(txid){
+  return await tx_get(txid);
 }
 
 export {HEADERS_FORWARD, HEADERS_BACKWARD};
