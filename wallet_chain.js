@@ -1,6 +1,7 @@
 // wallet_chain.js - SPV header chain store and validation
 import * as bitcoin from 'bitcoinjs-lib';
-import {buf_from_hex, buf_to_hex, addr_sh} from './settings.js';
+import {buf_from_hex, buf_to_hex, addr_sh, HD_SCAN_GAP,
+  hd_addr} from './settings.js';
 import {_el} from './electrum.js';
 import {hash256_pow, target_buf, target_rcmp} from './mine.js';
 import {hdr_get, hdr_put, hdr_get_tip, tx_get, tx_put,
@@ -174,6 +175,41 @@ export async function wc_get_sh_history(sh){
 // Get stored TX
 export async function wc_get_tx(txid){
   return await tx_get(txid);
+}
+
+// Step 5: wc versions of wallet_db functions
+
+// HD scan using local DB — syncs sh history from electrum, stores TXs locally
+export async function wc_hd_scan(netconf, root, accountPath, chain){
+  let network = netconf.network;
+  let used = [];
+  let lastUsed = -1;
+  let start = 0;
+  while (true){
+    let entries = Array.from({length: HD_SCAN_GAP},
+      (_, i)=>hd_addr(network, root, accountPath, chain, start+i));
+    let hists = await Promise.all(
+      entries.map(e=>wc_sync_sh_history(netconf, addr_sh(e.address, network)))
+    );
+    let anyUsed = false;
+    for (let i=0; i<HD_SCAN_GAP; i++){
+      let hist = hists[i];
+      if (hist?.error || !hist?.length)
+        continue;
+      // Store TXs with merkle proofs
+      for (let h of hist){
+        if (h.height>0 && !await tx_get(h.tx_hash))
+          await wc_store_tx(netconf, h.tx_hash, h.height);
+      }
+      used.push({...entries[i], hist});
+      lastUsed = entries[i].index;
+      anyUsed = true;
+    }
+    if (!anyUsed)
+      break;
+    start += HD_SCAN_GAP;
+  }
+  return {used, nextIndex: lastUsed+1};
 }
 
 // Step 3: UTXO + balance from local DB

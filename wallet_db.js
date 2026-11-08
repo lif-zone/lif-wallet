@@ -14,7 +14,8 @@ import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, DUST_VAL, g_settings,
 } from './settings.js';
 import {db_init, db_get, db_put, cache_clear, cache_ver} from './db_util.js';
 import {_el} from './electrum.js';
-import {wc_locate_addr} from './wallet_chain.js';
+import {wc_init, wc_sync_headers, wc_hd_scan, wc_get_balance, wc_listunspent,
+  wc_get_tx, wc_get_header} from './wallet_chain.js';
 
 export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   settings_cs_fetch, lif_server_get, lif_server_set,
@@ -131,6 +132,147 @@ export async function wallet_db_init(){
   wallets_load();
   for (const w of OV(g_wallets))
     await wallet_cs_load(w);
+}
+
+async function _wallet_fetch_wc(wallet){
+  const {netconf, network, ls, c, cs} = wallet;
+  const el = _el(netconf);
+  const root = wallet_root(wallet);
+  const ap = ls.derivPath || hd_path_def(netconf);
+  // Sync headers
+  await wc_init(netconf);
+  let hdr_res = await wc_sync_headers(netconf);
+  if (hdr_res.error)
+    console.error('wc_sync_headers:', hdr_res.error);
+  // HD scan via local DB
+  const [extRes, chgRes] = await Promise.all([
+    wc_hd_scan(netconf, root, ap, 0),
+    wc_hd_scan(netconf, root, ap, 1),
+  ]);
+  const addrs = c.addrs = [...extRes.used, ...chgRes.used];
+  cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
+    {address, chain, index, hist}));
+  c.receiveAddress = hd_addr(network, root, ap, 0, extRes.nextIndex).address;
+  cs.receiveAddress = c.receiveAddress;
+  c.changeAddrInfo = hd_addr(network, root, ap, 1, chgRes.nextIndex);
+  cs.changeAddrInfo = c.changeAddrInfo
+    ? {address: c.changeAddrInfo.address,
+      chain: c.changeAddrInfo.chain, index: c.changeAddrInfo.index}
+    : null;
+  // Balance + UTXOs from local DB
+  const bal = await wc_get_balance(netconf, addrs);
+  c.confirmed = bal.confirmed;
+  c.unconfirmed = bal.unconfirmed;
+  c.balance = c.confirmed+c.unconfirmed;
+  cs.confirmed = c.confirmed;
+  cs.unconfirmed = c.unconfirmed;
+  cs.balance = c.balance;
+  const utxos = await wc_listunspent(netconf, addrs);
+  c.utxos = utxos.map(u=>({...u, addrInfo: addrs.find(
+    a=>a.address==u.address)}));
+  cs.utxos = utxos;
+  c.feeRate = await el_estimatefee(netconf);
+  cs.feeRate = c.feeRate;
+  // Transactions from local DB
+  const addr_set = new Set(addrs.map(a=>a.address));
+  const txByHash = new Map();
+  for (const a of addrs){
+    for (const tx of (a.hist||[]))
+      txByHash.set(tx.tx_hash, tx);
+  }
+  const hist = [...txByHash.values()].sort((a, b)=>(b.height||1e9)
+    -(a.height||1e9));
+  c.transactions = [];
+  c.ownedKeys = [];
+  if (hist.length){
+    // Fetch verbose TXs - try local first, fall back to electrum
+    const verboseTxs = await Promise.all(hist.map(async(t)=>{
+      let entry = await wc_get_tx(t.tx_hash);
+      if (entry?.raw)
+        return await el.tx_get(t.tx_hash, true);
+      return await el.tx_get(t.tx_hash, true);
+    }));
+    // Get timestamps from local headers
+    const heights = [...new Set(hist.filter(t=>t.height>0)
+      .map(t=>t.height))];
+    const tsMap = {};
+    for (let h of heights){
+      let hdr = await wc_get_header(h);
+      if (hdr)
+        tsMap[h] = hdr.time;
+    }
+    const histTxIds = new Set(hist.map(t=>t.tx_hash));
+    const prevIds = [...new Set(verboseTxs.flatMap(vtx=>(vtx.vin||[]).map(
+      vin=>vin.txid).filter(id=>id&&!histTxIds.has(id))))];
+    const prevList = await Promise.all(prevIds.map(id=>
+      el.tx_get(id, true)));
+    const prevMap = {};
+    prevIds.forEach((id, i)=>{ prevMap[id]=prevList[i]; });
+    verboseTxs.forEach(vtx=>{ prevMap[vtx.txid]=vtx; });
+    const voutToOurAmt=(vouts)=>(vouts||[]).reduce((sum, vout)=>{
+      const as = vout.scriptPubKey?.addresses||(vout.scriptPubKey?.address ?
+        [vout.scriptPubKey.address] : []);
+      return as.some(a=>addr_set.has(a)) ? sum+Math.round(vout.value*1e8)
+        : sum;
+    }, 0);
+    c.transactions = hist.map((tx, i)=>{
+      const vtx = verboseTxs[i];
+      const enrichedVin = (vtx.vin||[]).map(vin=>{
+        if (!vin.txid)
+          return vin;
+        return {...vin, _prevVout: prevMap[vin.txid]?.vout?.[vin.vout]};
+      });
+      const received = voutToOurAmt(vtx.vout);
+      const spent = enrichedVin.reduce((sum, vin)=>{
+        if (!vin._prevVout)
+          return sum;
+        const as = vin._prevVout.scriptPubKey?.addresses ||
+          (vin._prevVout.scriptPubKey?.address ?
+          [vin._prevVout.scriptPubKey.address] : []);
+        return as.some(a=>addr_set.has(a)) ?
+          sum+Math.round(vin._prevVout.value*1e8) : sum;
+      }, 0);
+      const totalIn = enrichedVin.reduce((s, vin)=>
+        vin._prevVout ? s+Math.round(vin._prevVout.value*1e8) : s, 0);
+      const totalOut = (vtx.vout||[]).reduce((s, vout)=>
+        s+Math.round(vout.value*1e8), 0);
+      const fee = totalIn > 0 ? totalIn-totalOut : null;
+      return {...tx, timestamp: tx.height>0 ? tsMap[tx.height] : null,
+        amount: received-spent, fee, _vtx: {...vtx, vin: enrichedVin}};
+    });
+    if (netconf.lif_kv){
+      const keyMap = new Map();
+      for (const etx of c.transactions){
+        const vouts = etx._vtx?.vout||[];
+        for (let i=0; i<vouts.length; i++){
+          const vout = vouts[i];
+          if (!vout.lif_kv)
+            continue;
+          const saddr = vout.scriptPubKey?.address ||
+            vout.scriptPubKey?.addresses?.[0];
+          if (!addr_set.has(saddr))
+            continue;
+          for (const kv of vout.lif_kv){
+            const isUnconfirmed = etx.height<=0;
+            const priority = isUnconfirmed ? Infinity : etx.height;
+            const existing = keyMap.get(kv.key);
+            if (!existing || priority>=existing._priority){
+              const _kstatus = vout.spent ? 'spent' : isUnconfirmed ?
+                'receiving' : 'confirmed';
+              keyMap.set(kv.key, {key: kv.key, val: kv.val, tx: etx.tx_hash,
+                vout: i, _kstatus, _priority: priority});
+            }
+          }
+        }
+      }
+      c.ownedKeys = [...keyMap.values()];
+    }
+  }
+  cs.transactions = c.transactions;
+  cs.ownedKeys = c.ownedKeys;
+  cs.cache_ver = cache_ver;
+  await db_put('walletData:'+ls.id, cs);
+  return wallet;
 }
 
 async function _wallet_fetch(wallet){
@@ -274,7 +416,8 @@ export async function wallet_fetch(wallet, force){
   if (!force && (wait = wallet.c_wait))
     return await wait;
   wait = wallet.c_wait = ewait();
-  return wait.return(await _wallet_fetch(wallet));
+  let fn = use_wc ? _wallet_fetch_wc : _wallet_fetch;
+  return wait.return(await fn(wallet));
 }
 
 function wallet_root(wallet){
@@ -575,8 +718,6 @@ export function wallet_locate_txid(txid){
 
 // Returns {wallet, txs, walletAddrs, addrInfo} if addr found in any wallet, or null
 export function wallet_locate_addr(addr){
-  if (use_wc)
-    return wc_locate_addr(addr);
   for (const wallet of OV(g_wallets)){
     const addrs = wallet.c?.addrs||[];
     const addrInfo = addrs.find(a=>a.address==addr);
