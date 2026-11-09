@@ -194,8 +194,14 @@ export async function wc_store_tx(netconf, txid, height){
   }
   let {merkle, pos} = merkle_res;
   let computed_root = merkle_root_from_proof(txid, merkle, pos);
-  // Check if root matches our header (may not match during reorg — that's ok)
   let hdr = await hdr_get(netconf.symbol, height);
+  if (hdr && hdr.merkleRoot!=computed_root)
+  {
+    console.warn('wc_store_tx: invalid merkle proof from electrum server',
+      txid, 'height', height, 'expected', hdr.merkleRoot, 'got',
+      computed_root);
+    return {error: 'invalid merkle proof'};
+  }
   let verified = !!(hdr && hdr.merkleRoot==computed_root);
   let entry = {txid, raw, verbose, height, merkle, pos, merkle_root:
     computed_root, verified};
