@@ -184,13 +184,21 @@ export async function wc_store_tx(netconf, txid, height){
     return {error: 'tx_get '+txid+': '+raw.error};
   if (merkle_res?.error)
     return {error: 'tx_get_merkle '+txid+': '+merkle_res.error};
+  // Verify raw TX hashes to claimed txid
+  let tx = bitcoin.Transaction.fromHex(raw);
+  if (tx.getId()!=txid)
+  {
+    console.warn('wc_store_tx: electrum server returned TX with wrong txid',
+      txid, tx.getId());
+    return {error: 'txid mismatch'};
+  }
   let {merkle, pos} = merkle_res;
   let computed_root = merkle_root_from_proof(txid, merkle, pos);
+  // Check if root matches our header (may not match during reorg — that's ok)
   let hdr = await hdr_get(netconf.symbol, height);
-  let verified = false;
-  if (hdr && hdr.merkleRoot==computed_root)
-    verified = true;
-  let entry = {txid, raw, verbose, height, merkle, pos, verified};
+  let verified = !!(hdr && hdr.merkleRoot==computed_root);
+  let entry = {txid, raw, verbose, height, merkle, pos, merkle_root:
+    computed_root, verified};
   await tx_put(txid, entry);
   return entry;
 }
@@ -219,9 +227,10 @@ export async function wc_verify_tx(netconf, txid){
   let hdr = await hdr_get(netconf.symbol, entry.height);
   if (!hdr)
     return {error: 'header not found at height '+entry.height};
-  let computed_root = merkle_root_from_proof(txid, entry.merkle,
-    entry.pos);
-  entry.verified = hdr.merkleRoot==computed_root;
+  let root = entry.merkle_root
+    || merkle_root_from_proof(txid, entry.merkle, entry.pos);
+  entry.merkle_root = root;
+  entry.verified = hdr.merkleRoot==root;
   await tx_put(txid, entry);
   return entry;
 }

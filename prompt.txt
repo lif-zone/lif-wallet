@@ -1689,3 +1689,13 @@ USER: LIF uses its special hash only for PoW. All other hashes (including merkle
 
 CLAUDE: Fixed merkle_root_from_proof in wallet_chain.js to always use hash256_pow("sha256") (double-SHA256) instead of passing netconf.pow. Removed the pow parameter from the function since merkle trees always use double-SHA256 regardless of network.
 ---
+
+---
+USER: Dont store invalid merkle proofs - warn in log. If merkle is valid but root doesnt match our header, thats OK (could be reorg) - store it, just not verified.
+
+CLAUDE: Updated wc_store_tx in wallet_chain.js:
+- Added raw TX txid verification: hash raw TX and compare to claimed txid. If mismatch, warn and reject (dont store corrupt data).
+- Store computed merkle_root in the TX entry for efficient re-verification.
+- verified flag = root matches our header (root mismatch is OK, could be reorg).
+- wc_verify_tx now reuses stored merkle_root if available.
+---
