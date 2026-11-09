@@ -14,8 +14,9 @@ import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, DUST_VAL, g_settings,
 } from './settings.js';
 import {db_init, db_get, db_put, cache_clear, cache_ver} from './db_util.js';
 import {_el} from './electrum.js';
-import {wc_init, wc_sync_headers, wc_hd_scan, wc_get_balance, wc_listunspent,
-  wc_get_tx, wc_get_header, wc_tx_get_verbose} from './wallet_chain.js';
+import {wc_init, wc_sync_headers, wc_hd_scan, wc_store_tx, wc_get_balance,
+  wc_listunspent, wc_get_tx, wc_get_header, wc_tx_get_verbose}
+  from './wallet_chain.js';
 
 export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   settings_cs_fetch, lif_server_get, lif_server_set,
@@ -150,12 +151,16 @@ async function _wallet_fetch_wc(wallet, refresh){
     wc_hd_scan(netconf, root, ap, 1, chain_height, refresh),
   ]);
   const addrs = c.addrs = [...extRes.used, ...chgRes.used];
-  // Sync headers around TX heights (cache-first, fetches only missing)
-  let tx_heights = [...new Set(addrs.flatMap(a=>(a.hist||[])
-    .filter(h=>h.height>0).map(h=>h.height)))];
+  // Collect confirmed TX heights, sync headers first, then store TXes
+  // (headers must exist before wc_store_tx so merkle proofs can be verified)
+  let tx_entries = addrs.flatMap(a=>(a.hist||[]).filter(h=>h.height>0));
+  let tx_heights = [...new Set(tx_entries.map(h=>h.height))];
   let hdr_res = await wc_sync_headers(netconf, tx_heights, chain_height);
   if (hdr_res.error)
     console.error('wc_sync_headers:', hdr_res.error);
+  // Now store TXes with merkle verification
+  await Promise.all(tx_entries.map(h=>
+    wc_store_tx(netconf, h.tx_hash, h.height)));
   cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
     {address, chain, index, hist}));
   c.receiveAddress = hd_addr(network, root, ap, 0, extRes.nextIndex).address;

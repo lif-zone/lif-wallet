@@ -264,6 +264,8 @@ async function sh_history_fetch(netconf, sh, chain_height, refresh){
 
 // HD scan — cache-first, fetches from electrum only what's missing
 // refresh=true: re-query all address histories ignoring cached height
+// Returns used addresses+histories only. Does NOT fetch TXes (caller does
+// that after syncing headers so merkle proofs can be verified).
 export async function wc_hd_scan(netconf, root, accountPath, chain,
   chain_height, refresh)
 {
@@ -278,22 +280,14 @@ export async function wc_hd_scan(netconf, root, accountPath, chain,
       sh_history_fetch(netconf, addr_sh(e.address, network),
         chain_height, refresh)));
     let anyUsed = false;
-    let tx_fetches = [];
     for (let i=0; i<HD_SCAN_GAP; i++){
       let hist = hists[i];
       if (!hist?.length)
         continue;
-      for (let h of hist){
-        if (h.height>0)
-          tx_fetches.push(h);
-      }
       used.push({...entries[i], hist});
       lastUsed = entries[i].index;
       anyUsed = true;
     }
-    // Fetch missing TXs in parallel (wc_store_tx is cache-first)
-    await Promise.all(tx_fetches.map(h=>
-      wc_store_tx(netconf, h.tx_hash, h.height)));
     if (!anyUsed)
       break;
     start += HD_SCAN_GAP;
