@@ -1731,3 +1731,15 @@ USER: Mempool TXes still not detected - sh_history cache returns stale data beca
 
 CLAUDE: Fixed wallet_db.js wallet_fetch to pass force||refresh to _wallet_fetch. When entering a wallet (force=true), histories are always re-queried from electrum so mempool changes are detected. The checked_height cache only applies when reusing c_wait (force=false). Two-phase rendering still works: cached data shown instantly, then network re-query updates display.
 ---
+
+---
+USER: Move TX creation/fee estimation APIs from wallet_db.js to tx_create.js.
+
+CLAUDE: Created tx_create.js with all TX creation and fee estimation code moved from wallet_db.js:
+- el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find, wallet_bal
+- tx_psbt, psbt_input_get_value, tx_fund, tx_fee_calc (internal helpers)
+- tx_send, kv_tx_add, kv_tx_send, kv_tx_edit
+- kv_script (internal), u8arr_cmp/u8arr_eq (internal)
+- LIF_DOMAINS, kv_is_dns
+wallet_db.js imports from tx_create.js and re-exports everything so existing imports (wallet.jsx, mine_pool.js) are unchanged. Removed unused bitcoin and DUST_VAL imports from wallet_db.js.
+---
