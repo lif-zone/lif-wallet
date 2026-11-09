@@ -1673,3 +1673,13 @@ USER: Wire up wallet._refresh so the ↻ refresh button triggers a full re-query
 
 CLAUDE: Modified wallet.jsx Wallet_screen useEffect to detect refreshTick changes via useRef and set wallet._refresh = true before calling wallet_fetch. Also set wallet._refresh = true in the "Mine block" dev button handler. This ensures only the ↻ button (and mine-block) triggers full electrum re-queries, while normal mount/navigation uses cache-first behavior.
 ---
+
+---
+USER: Show cached wallet data immediately on render (both card and wallet screen), then update from network in background. Pages should render twice - first with cached data, then with fresh data.
+
+CLAUDE: Modified wallet.jsx for two-phase rendering:
+- Wallet_screen: renamed loading→updating, added hasCached flag. Transactions section shows cached data immediately, only shows "Loading…" when no cache at all. Shows "updating…" next to Transactions header during background fetch. walletLoading only true when updating AND no cache (so ↻ button stays clickable).
+- Wallet_card: already initializes from wallet.c cache, no changes needed.
+- Home screen ↻ button: sets wallet._refresh=true on all wallets before re-mount.
+- wallet_db.js wallet_fetch: _refresh now also bypasses c_wait (implies force), so home ↻ works without explicit force=true.
+---

@@ -413,13 +413,14 @@ async function _wallet_fetch(wallet){
 }
 
 export async function wallet_fetch(wallet, force){
-  let wait;
-  if (!force && (wait = wallet.c_wait))
-    return await wait;
-  wait = wallet.c_wait = ewait();
-  let refresh = use_wc && wallet._refresh;
+  let refresh = wallet._refresh;
   wallet._refresh = false;
-  let fn = use_wc ? w=>_wallet_fetch_wc(w, refresh) : w=>_wallet_fetch(w);
+  if (!force && !refresh && (wallet.c_wait))
+    return await wallet.c_wait;
+  let wait = wallet.c_wait = ewait();
+  let fn = use_wc
+    ? w=>_wallet_fetch_wc(w, refresh)
+    : w=>_wallet_fetch(w);
   return wait.return(await fn(wallet));
 }
 

@@ -382,7 +382,11 @@ function BrightWallet(){
         </div>
         <div style={{display: 'flex', gap: 8}}>
           {screen=='home' && <>
-            <button onClick={()=>setHomeRefreshTick(t=>t+1)} title="Refresh" style={{fontSize: 16}}>↻</button>
+            <button onClick={()=>{
+              for (let w of OV(wallets))
+                w._refresh = true;
+              setHomeRefreshTick(t=>t+1);
+            }} title="Refresh" style={{fontSize: 16}}>↻</button>
             <button onClick={()=>setScreen('settings')} title="Settings">⚙</button>
           </>}
           {screen=='wallet_info' && <>
@@ -798,16 +802,18 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
   const [balance, setBalance] = useState(wallet.c.balance ?? null);
   const [transactions, setTransactions] = useState(wallet.c.transactions ?? []);
   const [ownedKeys, setOwnedKeys] = useState(wallet.c.ownedKeys ?? []);
-  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [connErr, setConnErr] = useState(false);
   const [allAddrs, setAllAddrs] = useState(wallet.c.addrs ?? []);
+  const hasCached = balance!==null;
   const wallet_apply = (wallet)=>{
     setBalance(wallet.c.balance);
     setTransactions(wallet.c.transactions);
     setOwnedKeys(wallet.c.ownedKeys);
     setAllAddrs(wallet.c.addrs);
   };
-  useEffect(()=>{ setWalletLoading?.(loading); }, [loading]);
+  useEffect(()=>{ setWalletLoading?.(updating && !hasCached); },
+    [updating, hasCached]);
 
   const prevRefreshTick = useRef(refreshTick);
   useEffect(()=>{
@@ -820,13 +826,13 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
     }
     (async()=>{
       try {
-        setLoading(true);
+        setUpdating(true);
         wallet_apply(await wallet_fetch(wallet, true));
       } catch(e){
         console.error('Connect error:', e);
         setConnErr(true);
       } finally {
-        setLoading(false);
+        setUpdating(false);
       }
     })();
   }, [wallet.ls.id, wallet.ls.network, refreshTick]);
@@ -863,13 +869,13 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
               let res = await fetch(lif_server_get()+'/mine', {method: 'POST'});
               if (!res.ok)
                 throw {message: res.statusText};
-              setLoading(true);
+              setUpdating(true);
               wallet._refresh = true;
               wallet_apply(await wallet_fetch(wallet, true));
             } catch(e){
               await modal.alert(e.message);
             } finally {
-              setLoading(false);
+              setUpdating(false);
             }
           }}>Mine block</button>
         )}
@@ -888,8 +894,10 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
             ))}
           </ul>
         </>)}
-        <h3>Transactions</h3>
-        {loading ? (
+        <h3>Transactions{updating && hasCached
+          ? <span style={{color: '#aaa', fontSize: 12, fontWeight: 'normal'}}> updating…</span>
+          : ''}</h3>
+        {!hasCached && updating ? (
           <p style={{color: '#aaa'}}>Loading…</p>
         ) : !transactions.length ? (
           <div>
