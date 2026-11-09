@@ -417,7 +417,9 @@ export async function wallet_fetch(wallet, force){
   if (!force && (wait = wallet.c_wait))
     return await wait;
   wait = wallet.c_wait = ewait();
-  let fn = use_wc ? w=>_wallet_fetch_wc(w, force) : w=>_wallet_fetch(w);
+  let refresh = use_wc && wallet._refresh;
+  wallet._refresh = false;
+  let fn = use_wc ? w=>_wallet_fetch_wc(w, refresh) : w=>_wallet_fetch(w);
   return wait.return(await fn(wallet));
 }
 
