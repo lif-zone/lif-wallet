@@ -1667,3 +1667,9 @@ CLAUDE: Updated wallet_chain.js: added bitcoinjs-lib import and addr_sh import. 
 ---
 USER: implement step 5 of SPV wallet plan (wire into wallet_db.js)
 CLAUDE: Added wc_hd_scan() to wallet_chain.js — HD gap-limit scan that syncs sh history from electrum (storing locally), then fetches+stores TXs with merkle proofs for each history entry. Added _wallet_fetch_wc() to wallet_db.js — full wc-path replacement for _wallet_fetch: syncs headers via wc_sync_headers, scans addresses via wc_hd_scan, computes balance/UTXOs via wc_get_balance/wc_listunspent from local DB, gets timestamps from local headers via wc_get_header. Still falls back to electrum for verbose TX data (needed for transaction history display with vin/vout details). wallet_fetch() now dispatches to _wallet_fetch_wc when use_wc is set, otherwise uses original _wallet_fetch. Removed wc_locate_addr placeholder — wallet_locate_addr works the same for both paths since c.addrs and c.transactions are populated identically.
+
+---
+USER: Wire up wallet._refresh so the ↻ refresh button triggers a full re-query of all address histories, while normal navigation uses cached data.
+
+CLAUDE: Modified wallet.jsx Wallet_screen useEffect to detect refreshTick changes via useRef and set wallet._refresh = true before calling wallet_fetch. Also set wallet._refresh = true in the "Mine block" dev button handler. This ensures only the ↻ button (and mine-block) triggers full electrum re-queries, while normal mount/navigation uses cache-first behavior.
+---

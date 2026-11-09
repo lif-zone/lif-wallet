@@ -809,9 +809,15 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
   };
   useEffect(()=>{ setWalletLoading?.(loading); }, [loading]);
 
+  const prevRefreshTick = useRef(refreshTick);
   useEffect(()=>{
     if (!bip39.validateMnemonic(wallet.ls.mnemonic))
       return;
+    if (prevRefreshTick.current!=refreshTick)
+    {
+      wallet._refresh = true;
+      prevRefreshTick.current = refreshTick;
+    }
     (async()=>{
       try {
         setLoading(true);
@@ -858,6 +864,7 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
               if (!res.ok)
                 throw {message: res.statusText};
               setLoading(true);
+              wallet._refresh = true;
               wallet_apply(await wallet_fetch(wallet, true));
             } catch(e){
               await modal.alert(e.message);
