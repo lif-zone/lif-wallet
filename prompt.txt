@@ -1699,3 +1699,9 @@ CLAUDE: Updated wc_store_tx in wallet_chain.js:
 - verified flag = root matches our header (root mismatch is OK, could be reorg).
 - wc_verify_tx now reuses stored merkle_root if available.
 ---
+
+---
+USER: BTC wallet re-fetches all transaction.get verbose calls every time, unlike LIF which caches correctly.
+
+CLAUDE: Fixed wc_tx_get_verbose in wallet_chain.js - when no existing tx entry, the verbose data was fetched but never persisted (the old code only saved if entry already existed). Added else branch to create and store a minimal {txid, verbose} entry. Also fixed wc_store_tx ordering: moved TX storage after header sync in _wallet_fetch_wc so merkle proofs can be verified against headers. Removed TX fetching from wc_hd_scan (now only scans histories), added wc_store_tx import to wallet_db.js.
+---

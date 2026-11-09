@@ -218,10 +218,11 @@ export async function wc_tx_get_verbose(netconf, txid){
   let verbose = await el.tx_get(txid, true);
   if (verbose?.error)
     return verbose;
-  if (entry){
+  if (entry)
     entry.verbose = verbose;
-    await tx_put(txid, entry);
-  }
+  else
+    entry = {txid, verbose};
+  await tx_put(txid, entry);
   return verbose;
 }
 
