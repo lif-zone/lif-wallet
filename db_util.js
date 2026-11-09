@@ -16,19 +16,21 @@ export async function db_init(){
     }
   });
 }
-export async function hdr_get(height){
-  return await db.get('headers', height) ?? null;
+export async function hdr_get(net, height){
+  return await db.get('headers', [net, height]) ?? null;
 }
-export async function hdr_put(height, data){
-  await db.put('headers', data, height);
+export async function hdr_put(net, height, data){
+  await db.put('headers', data, [net, height]);
 }
-export async function hdr_get_tip(){
+export async function hdr_get_tip(net){
+  let range = IDBKeyRange.bound([net, 0], [net, Infinity]);
   let tx = db.transaction('headers', 'readonly');
-  let cursor = await tx.objectStore('headers').openCursor(null, 'prev');
+  let cursor = await tx.objectStore('headers').openCursor(range, 'prev');
   return cursor?.value ?? null;
 }
-export async function hdr_get_range(from, to){
-  return await db.getAll('headers', IDBKeyRange.bound(from, to));
+export async function hdr_get_range(net, from, to){
+  let range = IDBKeyRange.bound([net, from], [net, to]);
+  return await db.getAll('headers', range);
 }
 export async function tx_get(txid){
   return await db.get('txs', txid) ?? null;

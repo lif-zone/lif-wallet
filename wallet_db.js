@@ -139,17 +139,20 @@ async function _wallet_fetch_wc(wallet){
   const el = _el(netconf);
   const root = wallet_root(wallet);
   const ap = ls.derivPath || hd_path_def(netconf);
-  // Sync headers
   await wc_init(netconf);
-  let hdr_res = await wc_sync_headers(netconf);
-  if (hdr_res.error)
-    console.error('wc_sync_headers:', hdr_res.error);
-  // HD scan via local DB
+  // HD scan via local DB (fetches sh histories + TXs from electrum)
   const [extRes, chgRes] = await Promise.all([
     wc_hd_scan(netconf, root, ap, 0),
     wc_hd_scan(netconf, root, ap, 1),
   ]);
   const addrs = c.addrs = [...extRes.used, ...chgRes.used];
+  // Sync headers only around TX heights
+  let tx_heights = [...new Set(addrs.flatMap(a=>(a.hist||[])
+    .filter(h=>h.height>0).map(h=>h.height)))];
+  console.log('wc tx_heights', netconf.symbol, tx_heights);
+  let hdr_res = await wc_sync_headers(netconf, tx_heights);
+  if (hdr_res.error)
+    console.error('wc_sync_headers:', hdr_res.error);
   cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
     {address, chain, index, hist}));
   c.receiveAddress = hd_addr(network, root, ap, 0, extRes.nextIndex).address;
@@ -197,7 +200,7 @@ async function _wallet_fetch_wc(wallet){
       .map(t=>t.height))];
     const tsMap = {};
     for (let h of heights){
-      let hdr = await wc_get_header(h);
+      let hdr = await wc_get_header(netconf, h);
       if (hdr)
         tsMap[h] = hdr.time;
     }

@@ -55,7 +55,7 @@ function get_state(netconf){
 // Load tip from DB on init
 export async function wc_init(netconf){
   let st = get_state(netconf);
-  st.tip = await hdr_get_tip();
+  st.tip = await hdr_get_tip(netconf.symbol);
   if (st.tip)
     st.tip.hash = hdr_hash(st.tip.raw, netconf.pow);
   return st;
@@ -63,50 +63,100 @@ export async function wc_init(netconf){
 
 const BATCH_SIZE = 2016;
 
-// Sync headers from electrum. Fetches in batches.
-export async function wc_sync_headers(netconf){
-  let st = get_state(netconf);
+// Merge overlapping/adjacent [from, to] ranges (sorted by from)
+function merge_ranges(ranges){
+  if (!ranges.length)
+    return [];
+  ranges.sort((a, b)=>a[0]-b[0]);
+  let merged = [ranges[0]];
+  for (let i=1; i<ranges.length; i++){
+    let last = merged[merged.length-1];
+    if (ranges[i][0]<=last[1]+1)
+      last[1] = Math.max(last[1], ranges[i][1]);
+    else
+      merged.push(ranges[i]);
+  }
+  return merged;
+}
+
+// Sync headers around TX heights. Only fetches what's missing from DB.
+export async function wc_sync_headers(netconf, tx_heights){
+  let net = netconf.symbol;
   let el = _el(netconf);
   let sub = await el.headers_subscribe();
   if (sub.error)
     return {error: sub.error};
   let chain_height = sub.height;
-  let start = st.tip ? st.tip.height+1 : 0;
+  if (!tx_heights?.length)
+    return {height: chain_height, count: 0};
+  // Compute needed ranges from TX heights
+  let ranges = tx_heights.map(h=>[
+    Math.max(0, h-HEADERS_BACKWARD),
+    Math.min(chain_height, h+HEADERS_FORWARD),
+  ]);
+  ranges = merge_ranges(ranges);
+  // Remove heights we already have
+  let missing = [];
+  for (let [from, to] of ranges){
+    let run_start = null;
+    for (let h=from; h<=to; h++){
+      let existing = await hdr_get(net, h);
+      if (!existing){
+        if (run_start==null)
+          run_start = h;
+      } else {
+        if (run_start!=null){
+          missing.push([run_start, h-1]);
+          run_start = null;
+        }
+      }
+    }
+    if (run_start!=null)
+      missing.push([run_start, to]);
+  }
+  if (!missing.length)
+    return {height: chain_height, count: 0};
+  // Fetch missing ranges in batches
   let pow = netconf.pow;
   let total = 0;
-  while (start<=chain_height){
-    let want = Math.min(BATCH_SIZE, chain_height-start+1);
-    let res = await el.block_headers(start, want);
-    if (res.error)
-      return {error: 'block_headers '+start+': '+res.error};
-    let {hex, count} = res;
-    if (!count)
-      break;
-    for (let i=0; i<count; i++){
-      let raw_hex = hex.slice(i*HEADER_SIZE*2, (i+1)*HEADER_SIZE*2);
-      let h = start+i;
-      let hdr = hdr_parse(raw_hex, h);
-      hdr.hash = hdr_hash(raw_hex, pow);
-      if (!hdr_verify_pow(raw_hex, pow))
-        return {error: 'invalid pow at height '+h};
-      if (st.tip && hdr.prevHash!=st.tip.hash)
-        return {error: 'prevHash mismatch at height '+h};
-      await hdr_put(h, hdr);
-      st.tip = hdr;
-      total++;
+  for (let [from, to] of missing){
+    let start = from;
+    while (start<=to){
+      let want = Math.min(BATCH_SIZE, to-start+1);
+      let res = await el.block_headers(start, want);
+      if (res.error)
+        return {error: 'block_headers '+start+': '+res.error};
+      let {hex, count} = res;
+      if (!count)
+        break;
+      for (let i=0; i<count; i++){
+        let raw_hex = hex.slice(i*HEADER_SIZE*2, (i+1)*HEADER_SIZE*2);
+        let h = start+i;
+        let hdr = hdr_parse(raw_hex, h);
+        hdr.hash = hdr_hash(raw_hex, pow);
+        if (!hdr_verify_pow(raw_hex, pow))
+          return {error: 'invalid pow at height '+h};
+        // Validate prevHash against previous header if we have it
+        let prev = await hdr_get(net, h-1);
+        if (prev){
+          let prev_hash = hdr_hash(prev.raw, pow);
+          if (hdr.prevHash!=prev_hash)
+            return {error: 'prevHash mismatch at height '+h};
+        }
+        await hdr_put(net, h, hdr);
+        total++;
+      }
+      start += count;
     }
-    start += count;
-    if (total%100==0 || start>chain_height)
-      console.log('wc_sync_headers: '+start+'/'+chain_height);
   }
   if (total)
-    console.log('wc_sync_headers: synced '+total+' headers to '+chain_height);
+    console.log('wc_sync_headers: synced '+total+' headers for '+net);
   return {height: chain_height, count: total};
 }
 
 // Get a stored header by height
-export async function wc_get_header(height){
-  return await hdr_get(height);
+export async function wc_get_header(netconf, height){
+  return await hdr_get(netconf.symbol, height);
 }
 
 // Step 2: TX store with merkle proofs
@@ -125,15 +175,17 @@ function merkle_root_from_proof(pow, txid, merkle, pos){
 // Fetch TX + merkle proof from electrum, verify against stored header, store
 export async function wc_store_tx(netconf, txid, height){
   let el = _el(netconf);
-  let raw = await el.tx_get(txid, false);
+  let [raw, merkle_res] = await Promise.all([
+    el.tx_get(txid, false),
+    el.tx_get_merkle(txid, height),
+  ]);
   if (raw?.error)
     return {error: 'tx_get '+txid+': '+raw.error};
-  let merkle_res = await el.tx_get_merkle(txid, height);
   if (merkle_res?.error)
     return {error: 'tx_get_merkle '+txid+': '+merkle_res.error};
   let {merkle, pos} = merkle_res;
   let computed_root = merkle_root_from_proof(netconf.pow, txid, merkle, pos);
-  let hdr = await hdr_get(height);
+  let hdr = await hdr_get(netconf.symbol, height);
   let verified = false;
   if (hdr && hdr.merkleRoot==computed_root)
     verified = true;
@@ -147,7 +199,7 @@ export async function wc_verify_tx(netconf, txid){
   let entry = await tx_get(txid);
   if (!entry)
     return {error: 'tx not found'};
-  let hdr = await hdr_get(entry.height);
+  let hdr = await hdr_get(netconf.symbol, entry.height);
   if (!hdr)
     return {error: 'header not found at height '+entry.height};
   let computed_root = merkle_root_from_proof(netconf.pow, txid, entry.merkle,
@@ -192,19 +244,25 @@ export async function wc_hd_scan(netconf, root, accountPath, chain){
       entries.map(e=>wc_sync_sh_history(netconf, addr_sh(e.address, network)))
     );
     let anyUsed = false;
+    // Collect all TXs to fetch across all addresses in this batch
+    let tx_fetches = [];
     for (let i=0; i<HD_SCAN_GAP; i++){
       let hist = hists[i];
       if (hist?.error || !hist?.length)
         continue;
-      // Store TXs with merkle proofs
       for (let h of hist){
-        if (h.height>0 && !await tx_get(h.tx_hash))
-          await wc_store_tx(netconf, h.tx_hash, h.height);
+        if (h.height>0)
+          tx_fetches.push(h);
       }
       used.push({...entries[i], hist});
       lastUsed = entries[i].index;
       anyUsed = true;
     }
+    // Fetch all TXs in parallel (skip already stored)
+    await Promise.all(tx_fetches.map(async(h)=>{
+      if (!await tx_get(h.tx_hash))
+        await wc_store_tx(netconf, h.tx_hash, h.height);
+    }));
     if (!anyUsed)
       break;
     start += HD_SCAN_GAP;
@@ -223,7 +281,7 @@ function tx_parse_outputs(raw_hex, network){
     try {
       addr = bitcoin.address.fromOutputScript(tx.outs[i].script, network);
     } catch(e){}
-    outputs.push({index: i, value: tx.outs[i].value, address: addr});
+    outputs.push({index: i, value: Number(tx.outs[i].value), address: addr});
   }
   return {txid: tx.getId(), outputs, inputs: tx.ins.map(inp=>({
     txid: Buffer.from(inp.hash).reverse().toString('hex'),
