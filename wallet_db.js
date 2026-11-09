@@ -15,7 +15,7 @@ import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, DUST_VAL, g_settings,
 import {db_init, db_get, db_put, cache_clear, cache_ver} from './db_util.js';
 import {_el} from './electrum.js';
 import {wc_init, wc_sync_headers, wc_hd_scan, wc_get_balance, wc_listunspent,
-  wc_get_tx, wc_get_header} from './wallet_chain.js';
+  wc_get_tx, wc_get_header, wc_tx_get_verbose} from './wallet_chain.js';
 
 export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   settings_cs_fetch, lif_server_get, lif_server_set,
@@ -134,23 +134,26 @@ export async function wallet_db_init(){
     await wallet_cs_load(w);
 }
 
-async function _wallet_fetch_wc(wallet){
+async function _wallet_fetch_wc(wallet, refresh){
   const {netconf, network, ls, c, cs} = wallet;
   const el = _el(netconf);
   const root = wallet_root(wallet);
   const ap = ls.derivPath || hd_path_def(netconf);
   await wc_init(netconf);
-  // HD scan via local DB (fetches sh histories + TXs from electrum)
+  // Get chain height for cache staleness check
+  let sub = await el.headers_subscribe();
+  let chain_height = sub.error ? 0 : sub.height;
+  // HD scan — cache-first, fetches only what's missing
+  // refresh=true: re-query all histories ignoring cached height
   const [extRes, chgRes] = await Promise.all([
-    wc_hd_scan(netconf, root, ap, 0),
-    wc_hd_scan(netconf, root, ap, 1),
+    wc_hd_scan(netconf, root, ap, 0, chain_height, refresh),
+    wc_hd_scan(netconf, root, ap, 1, chain_height, refresh),
   ]);
   const addrs = c.addrs = [...extRes.used, ...chgRes.used];
-  // Sync headers only around TX heights
+  // Sync headers around TX heights (cache-first, fetches only missing)
   let tx_heights = [...new Set(addrs.flatMap(a=>(a.hist||[])
     .filter(h=>h.height>0).map(h=>h.height)))];
-  console.log('wc tx_heights', netconf.symbol, tx_heights);
-  let hdr_res = await wc_sync_headers(netconf, tx_heights);
+  let hdr_res = await wc_sync_headers(netconf, tx_heights, chain_height);
   if (hdr_res.error)
     console.error('wc_sync_headers:', hdr_res.error);
   cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
@@ -188,13 +191,8 @@ async function _wallet_fetch_wc(wallet){
   c.transactions = [];
   c.ownedKeys = [];
   if (hist.length){
-    // Fetch verbose TXs - try local first, fall back to electrum
-    const verboseTxs = await Promise.all(hist.map(async(t)=>{
-      let entry = await wc_get_tx(t.tx_hash);
-      if (entry?.raw)
-        return await el.tx_get(t.tx_hash, true);
-      return await el.tx_get(t.tx_hash, true);
-    }));
+    const verboseTxs = await Promise.all(hist.map(t=>
+      wc_tx_get_verbose(netconf, t.tx_hash)));
     // Get timestamps from local headers
     const heights = [...new Set(hist.filter(t=>t.height>0)
       .map(t=>t.height))];
@@ -208,7 +206,7 @@ async function _wallet_fetch_wc(wallet){
     const prevIds = [...new Set(verboseTxs.flatMap(vtx=>(vtx.vin||[]).map(
       vin=>vin.txid).filter(id=>id&&!histTxIds.has(id))))];
     const prevList = await Promise.all(prevIds.map(id=>
-      el.tx_get(id, true)));
+      wc_tx_get_verbose(netconf, id)));
     const prevMap = {};
     prevIds.forEach((id, i)=>{ prevMap[id]=prevList[i]; });
     verboseTxs.forEach(vtx=>{ prevMap[vtx.txid]=vtx; });
@@ -419,7 +417,7 @@ export async function wallet_fetch(wallet, force){
   if (!force && (wait = wallet.c_wait))
     return await wait;
   wait = wallet.c_wait = ewait();
-  let fn = use_wc ? _wallet_fetch_wc : _wallet_fetch;
+  let fn = use_wc ? w=>_wallet_fetch_wc(w, force) : w=>_wallet_fetch(w);
   return wait.return(await fn(wallet));
 }
 

@@ -80,13 +80,9 @@ function merge_ranges(ranges){
 }
 
 // Sync headers around TX heights. Only fetches what's missing from DB.
-export async function wc_sync_headers(netconf, tx_heights){
+export async function wc_sync_headers(netconf, tx_heights, chain_height){
   let net = netconf.symbol;
   let el = _el(netconf);
-  let sub = await el.headers_subscribe();
-  if (sub.error)
-    return {error: sub.error};
-  let chain_height = sub.height;
   if (!tx_heights?.length)
     return {height: chain_height, count: 0};
   // Compute needed ranges from TX heights
@@ -172,11 +168,15 @@ function merkle_root_from_proof(pow, txid, merkle, pos){
   return buf_to_hex(Buffer.from(hash).reverse());
 }
 
-// Fetch TX + merkle proof from electrum, verify against stored header, store
+// Fetch TX + merkle proof + verbose from electrum, store all. Cache-first.
 export async function wc_store_tx(netconf, txid, height){
+  let existing = await tx_get(txid);
+  if (existing)
+    return existing;
   let el = _el(netconf);
-  let [raw, merkle_res] = await Promise.all([
+  let [raw, verbose, merkle_res] = await Promise.all([
     el.tx_get(txid, false),
+    el.tx_get(txid, true),
     el.tx_get_merkle(txid, height),
   ]);
   if (raw?.error)
@@ -189,9 +189,25 @@ export async function wc_store_tx(netconf, txid, height){
   let verified = false;
   if (hdr && hdr.merkleRoot==computed_root)
     verified = true;
-  let entry = {txid, raw, height, merkle, pos, verified};
+  let entry = {txid, raw, verbose, height, merkle, pos, verified};
   await tx_put(txid, entry);
   return entry;
+}
+
+// Get verbose TX — local first, fetch+store if missing
+export async function wc_tx_get_verbose(netconf, txid){
+  let entry = await tx_get(txid);
+  if (entry?.verbose)
+    return entry.verbose;
+  let el = _el(netconf);
+  let verbose = await el.tx_get(txid, true);
+  if (verbose?.error)
+    return verbose;
+  if (entry){
+    entry.verbose = verbose;
+    await tx_put(txid, entry);
+  }
+  return verbose;
 }
 
 // Verify a stored TX against its header (e.g. after syncing new headers)
@@ -209,21 +225,6 @@ export async function wc_verify_tx(netconf, txid){
   return entry;
 }
 
-// Fetch and store scripthash history from electrum
-export async function wc_sync_sh_history(netconf, sh){
-  let el = _el(netconf);
-  let history = await el.sh_get_history(sh);
-  if (history?.error)
-    return {error: 'sh_get_history: '+history.error};
-  await sh_history_put(sh, history);
-  return history;
-}
-
-// Get stored scripthash history
-export async function wc_get_sh_history(sh){
-  return await sh_history_get(sh);
-}
-
 // Get stored TX
 export async function wc_get_tx(txid){
   return await tx_get(txid);
@@ -231,8 +232,25 @@ export async function wc_get_tx(txid){
 
 // Step 5: wc versions of wallet_db functions
 
-// HD scan using local DB — syncs sh history from electrum, stores TXs locally
-export async function wc_hd_scan(netconf, root, accountPath, chain){
+// Fetch sh history from electrum if stale (checked_height < chain_height)
+// refresh=true ignores checked_height, always re-queries
+async function sh_history_fetch(netconf, sh, chain_height, refresh){
+  let cached = await sh_history_get(sh);
+  if (cached && !refresh && cached.checked_height>=chain_height)
+    return cached.entries;
+  let el = _el(netconf);
+  let history = await el.sh_get_history(sh);
+  if (history?.error)
+    return cached?.entries || [];
+  await sh_history_put(sh, {entries: history, checked_height: chain_height});
+  return history;
+}
+
+// HD scan — cache-first, fetches from electrum only what's missing
+// refresh=true: re-query all address histories ignoring cached height
+export async function wc_hd_scan(netconf, root, accountPath, chain,
+  chain_height, refresh)
+{
   let network = netconf.network;
   let used = [];
   let lastUsed = -1;
@@ -240,15 +258,14 @@ export async function wc_hd_scan(netconf, root, accountPath, chain){
   while (true){
     let entries = Array.from({length: HD_SCAN_GAP},
       (_, i)=>hd_addr(network, root, accountPath, chain, start+i));
-    let hists = await Promise.all(
-      entries.map(e=>wc_sync_sh_history(netconf, addr_sh(e.address, network)))
-    );
+    let hists = await Promise.all(entries.map(e=>
+      sh_history_fetch(netconf, addr_sh(e.address, network),
+        chain_height, refresh)));
     let anyUsed = false;
-    // Collect all TXs to fetch across all addresses in this batch
     let tx_fetches = [];
     for (let i=0; i<HD_SCAN_GAP; i++){
       let hist = hists[i];
-      if (hist?.error || !hist?.length)
+      if (!hist?.length)
         continue;
       for (let h of hist){
         if (h.height>0)
@@ -258,11 +275,9 @@ export async function wc_hd_scan(netconf, root, accountPath, chain){
       lastUsed = entries[i].index;
       anyUsed = true;
     }
-    // Fetch all TXs in parallel (skip already stored)
-    await Promise.all(tx_fetches.map(async(h)=>{
-      if (!await tx_get(h.tx_hash))
-        await wc_store_tx(netconf, h.tx_hash, h.height);
-    }));
+    // Fetch missing TXs in parallel (wc_store_tx is cache-first)
+    await Promise.all(tx_fetches.map(h=>
+      wc_store_tx(netconf, h.tx_hash, h.height)));
     if (!anyUsed)
       break;
     start += HD_SCAN_GAP;
@@ -289,6 +304,12 @@ function tx_parse_outputs(raw_hex, network){
   }))};
 }
 
+function sh_entries(cached){
+  if (!cached)
+    return [];
+  return cached.entries || cached;
+}
+
 // Compute balance from locally stored TXs for a set of addresses
 export async function wc_get_balance(netconf, addrs){
   let network = netconf.network;
@@ -300,8 +321,8 @@ export async function wc_get_balance(netconf, addrs){
   let tx_entries = [];
   for (let a of addrs){
     let sh = addr_sh(a.address, network);
-    let hist = await sh_history_get(sh);
-    if (!hist)
+    let hist = sh_entries(await sh_history_get(sh));
+    if (!hist.length)
       continue;
     for (let h of hist){
       let entry = await tx_get(h.tx_hash);
@@ -340,8 +361,8 @@ export async function wc_listunspent(netconf, addrs){
   let tx_entries = [];
   for (let a of addrs){
     let sh = addr_sh(a.address, network);
-    let hist = await sh_history_get(sh);
-    if (!hist)
+    let hist = sh_entries(await sh_history_get(sh));
+    if (!hist.length)
       continue;
     for (let h of hist){
       let entry = await tx_get(h.tx_hash);
