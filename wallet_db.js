@@ -150,15 +150,15 @@ async function _wallet_fetch(wallet, refresh){
     wc_hd_scan(netconf, root, ap, 1, chain_height, refresh),
   ]);
   const addrs = c.addrs = [...extRes.used, ...chgRes.used];
-  // Collect confirmed TX heights, sync headers first, then store TXes
-  // (headers must exist before wc_store_tx so merkle proofs can be verified)
-  let tx_entries = addrs.flatMap(a=>(a.hist||[]).filter(h=>h.height>0));
-  let tx_heights = [...new Set(tx_entries.map(h=>h.height))];
-  let hdr_res = await wc_sync_headers(netconf, tx_heights, chain_height);
+  // Sync headers for confirmed TXes, then store all TXes
+  let all_tx = addrs.flatMap(a=>(a.hist||[]).map(h=>h));
+  let confirmed_heights = [...new Set(all_tx.filter(h=>h.height>0)
+    .map(h=>h.height))];
+  let hdr_res = await wc_sync_headers(netconf, confirmed_heights,
+    chain_height);
   if (hdr_res.error)
     console.error('wc_sync_headers:', hdr_res.error);
-  // Now store TXes with merkle verification
-  await Promise.all(tx_entries.map(h=>
+  await Promise.all(all_tx.map(h=>
     wc_store_tx(netconf, h.tx_hash, h.height)));
   cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
     {address, chain, index, hist}));
@@ -286,7 +286,10 @@ export async function wallet_fetch(wallet, force){
   if (!force && !refresh && (wallet.c_wait))
     return await wallet.c_wait;
   let wait = wallet.c_wait = ewait();
-  return wait.return(await _wallet_fetch(wallet, refresh));
+  // Always re-query histories on wallet entry (force=true) to detect
+  // mempool changes (mempool doesn't advance chain tip, so checked_height
+  // cache would miss them). refresh=true forces full re-query.
+  return wait.return(await _wallet_fetch(wallet, force || refresh));
 }
 
 function wallet_root(wallet){

@@ -1716,3 +1716,18 @@ CLAUDE: Removed from wallet_db.js:
 - `use_wc` branching in `wallet_fetch()`
 Renamed `_wallet_fetch_wc` → `_wallet_fetch` since it is now the only path. wallet_fetch() now calls _wallet_fetch() directly.
 ---
+
+---
+USER: Mempool/pending transactions are not handled - they were filtered out by height>0 check. This is a regression from the old code.
+
+CLAUDE: Fixed mempool TX support:
+- wallet_db.js _wallet_fetch: removed height>0 filter, now fetches ALL TXes including mempool (height<=0). Headers only synced for confirmed heights.
+- wallet_chain.js wc_store_tx: mempool TXes (height<=0) stored without merkle proof (raw+verbose only, verified=false). When a cached mempool TX gets confirmed (height changes from 0 to N>0), it re-fetches with merkle proof. Cache check: returns existing only if already confirmed OR still in mempool.
+- wc_get_balance and wc_listunspent already handled unconfirmed correctly (height<=0 counted as unconfirmed).
+---
+
+---
+USER: Mempool TXes still not detected - sh_history cache returns stale data because chain tip unchanged.
+
+CLAUDE: Fixed wallet_db.js wallet_fetch to pass force||refresh to _wallet_fetch. When entering a wallet (force=true), histories are always re-queried from electrum so mempool changes are detected. The checked_height cache only applies when reusing c_wait (force=false). Two-phase rendering still works: cached data shown instantly, then network re-query updates display.
+---

@@ -170,11 +170,33 @@ function merkle_root_from_proof(txid, merkle, pos){
 }
 
 // Fetch TX + merkle proof + verbose from electrum, store all. Cache-first.
+// Mempool TXes (height<=0) stored without merkle proof.
+// If a cached mempool TX is now confirmed, re-fetch with merkle proof.
 export async function wc_store_tx(netconf, txid, height){
   let existing = await tx_get(txid);
-  if (existing)
+  if (existing && (existing.height>0 || height<=0))
     return existing;
   let el = _el(netconf);
+  // Mempool: no merkle proof available
+  if (height<=0)
+  {
+    let [raw, verbose] = await Promise.all([
+      el.tx_get(txid, false),
+      el.tx_get(txid, true),
+    ]);
+    if (raw?.error)
+      return {error: 'tx_get '+txid+': '+raw.error};
+    let tx = bitcoin.Transaction.fromHex(raw);
+    if (tx.getId()!=txid)
+    {
+      console.warn('wc_store_tx: TX txid mismatch', txid, tx.getId());
+      return {error: 'txid mismatch'};
+    }
+    let entry = {txid, raw, verbose, height, verified: false};
+    await tx_put(txid, entry);
+    return entry;
+  }
+  // Confirmed: fetch with merkle proof
   let [raw, verbose, merkle_res] = await Promise.all([
     el.tx_get(txid, false),
     el.tx_get(txid, true),
@@ -184,12 +206,10 @@ export async function wc_store_tx(netconf, txid, height){
     return {error: 'tx_get '+txid+': '+raw.error};
   if (merkle_res?.error)
     return {error: 'tx_get_merkle '+txid+': '+merkle_res.error};
-  // Verify raw TX hashes to claimed txid
   let tx = bitcoin.Transaction.fromHex(raw);
   if (tx.getId()!=txid)
   {
-    console.warn('wc_store_tx: electrum server returned TX with wrong txid',
-      txid, tx.getId());
+    console.warn('wc_store_tx: TX txid mismatch', txid, tx.getId());
     return {error: 'txid mismatch'};
   }
   let {merkle, pos} = merkle_res;
