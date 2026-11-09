@@ -23,7 +23,6 @@ export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
   _el};
 
-let use_wc = localStorage.getItem('use_wc');
 
 lifnet.set_opt({client_name: 'wallet'});
 
@@ -135,7 +134,7 @@ export async function wallet_db_init(){
     await wallet_cs_load(w);
 }
 
-async function _wallet_fetch_wc(wallet, refresh){
+async function _wallet_fetch(wallet, refresh){
   const {netconf, network, ls, c, cs} = wallet;
   const el = _el(netconf);
   const root = wallet_root(wallet);
@@ -281,152 +280,13 @@ async function _wallet_fetch_wc(wallet, refresh){
   return wallet;
 }
 
-async function _wallet_fetch(wallet){
-  const {netconf, network, ls, c, cs} = wallet;
-  const el = _el(netconf);
-  const root = wallet_root(wallet);
-  const ap = ls.derivPath || hd_path_def(netconf);
-  const [extRes, chgRes] = await Promise.all([
-    hd_scan(netconf, root, ap, 0),
-    hd_scan(netconf, root, ap, 1),
-  ]);
-  const addrs = c.addrs = [...extRes.used, ...chgRes.used];
-  cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
-    {address, chain, index, hist}));
-  c.receiveAddress = hd_addr(network, root, ap, 0, extRes.nextIndex)
-    .address;
-  cs.receiveAddress = c.receiveAddress;
-  c.changeAddrInfo = hd_addr(network, root, ap, 1, chgRes.nextIndex);
-  cs.changeAddrInfo = c.changeAddrInfo
-    ? {address: c.changeAddrInfo.address,
-      chain: c.changeAddrInfo.chain, index: c.changeAddrInfo.index}
-    : null;
-  const addr_set = new Set(addrs.map(a=>a.address));
-  const [utxo_list, bals] = await Promise.all([
-    Promise.all(addrs.map(async(a)=>{
-      const unspent = await el.sh_listunspent(addr_sh(a.address, network));
-      return unspent.map(u=>({...u, address: a.address, chain: a.chain, index: a.index}));
-    })),
-    Promise.all(addrs.map(async(a)=>{
-      let bal = await el.sh_get_balance(addr_sh(a.address, network));
-      return bal;
-    })),
-  ]);
-  c.utxos = utxo_list.flat().map(u=>({...u, addrInfo: addrs.find(
-    a=>a.address==u.address)}));
-  cs.utxos = c.utxos.map(({tx_hash, tx_pos, value, address, chain, index})=>
-    ({tx_hash, tx_pos, value, address, chain, index}));
-  c.confirmed = bals.reduce((s, b)=>s+b.confirmed, 0);
-  c.unconfirmed = bals.reduce((s, b)=>s+b.unconfirmed, 0);
-  c.balance = c.confirmed+c.unconfirmed;
-  cs.confirmed = c.confirmed;
-  cs.unconfirmed = c.unconfirmed;
-  cs.balance = c.balance;
-  c.feeRate = await el_estimatefee(netconf);
-  cs.feeRate = c.feeRate;
-  // Transactions
-  const txByHash = new Map();
-  for (const a of addrs){
-    for (const tx of (a.hist||[]))
-      txByHash.set(tx.tx_hash, tx);
-  }
-  const hist = [...txByHash.values()].sort((a, b)=>(b.height||1e9)
-    -(a.height||1e9));
-  c.transactions = [];
-  c.ownedKeys = [];
-  if (hist.length){
-    const heights = [...new Set(hist.filter(t=>t.height>0).map(t=>t.height))];
-    const [verboseTxs, ...headers] = await Promise.all([
-      Promise.all(hist.map(t=>el.tx_get(t.tx_hash, true))),
-      ...heights.map(h=>el.block_header(h)),
-    ]);
-    const tsMap = {};
-    heights.forEach((h, i)=>{
-      tsMap[h] = buf_from_hex(headers[i]).readUInt32LE(68);
-    });
-    const histTxIds = new Set(hist.map(t=>t.tx_hash));
-    const prevIds = [...new Set(verboseTxs.flatMap(vtx=>(vtx.vin||[]).map(
-      vin=>vin.txid).filter(id=>id&&!histTxIds.has(id))))];
-    const prevList = await Promise.all(prevIds.map(id=>el.tx_get(id, true)));
-    const prevMap = {};
-    prevIds.forEach((id, i)=>{ prevMap[id]=prevList[i]; });
-    verboseTxs.forEach(vtx=>{ prevMap[vtx.txid]=vtx; });
-    const voutToOurAmt=(vouts)=>(vouts||[]).reduce((sum, vout)=>{
-      const as = vout.scriptPubKey?.addresses||(vout.scriptPubKey?.address ?
-        [vout.scriptPubKey.address] : []);
-      return as.some(a=>addr_set.has(a)) ? sum+Math.round(vout.value*1e8)
-        : sum;
-    }, 0);
-    c.transactions = hist.map((tx, i)=>{
-      const vtx = verboseTxs[i];
-      const enrichedVin = (vtx.vin||[]).map(vin=>{
-        if (!vin.txid)
-          return vin;
-        return {...vin, _prevVout: prevMap[vin.txid]?.vout?.[vin.vout]};
-      });
-      const received = voutToOurAmt(vtx.vout);
-      const spent = enrichedVin.reduce((sum, vin)=>{
-        if (!vin._prevVout)
-          return sum;
-        const as = vin._prevVout.scriptPubKey?.addresses ||
-          (vin._prevVout.scriptPubKey?.address ?
-          [vin._prevVout.scriptPubKey.address] : []);
-        return as.some(a=>addr_set.has(a)) ?
-          sum+Math.round(vin._prevVout.value*1e8) : sum;
-      }, 0);
-      const totalIn = enrichedVin.reduce((s, vin)=>
-        vin._prevVout ? s+Math.round(vin._prevVout.value*1e8) : s, 0);
-      const totalOut = (vtx.vout||[]).reduce((s, vout)=>
-        s+Math.round(vout.value*1e8), 0);
-      const fee = totalIn > 0 ? totalIn-totalOut : null;
-      return {...tx, timestamp: tx.height>0 ? tsMap[tx.height] : null,
-        amount: received-spent, fee, _vtx: {...vtx, vin: enrichedVin}};
-    });
-    if (netconf.lif_kv){
-      const keyMap = new Map();
-      for (const etx of c.transactions){
-        const vouts = etx._vtx?.vout||[];
-        for (let i=0; i<vouts.length; i++){
-          const vout = vouts[i];
-          if (!vout.lif_kv)
-            continue;
-          const saddr = vout.scriptPubKey?.address ||
-            vout.scriptPubKey?.addresses?.[0];
-          if (!addr_set.has(saddr))
-            continue;
-          for (const kv of vout.lif_kv){
-            const isUnconfirmed = etx.height<=0;
-            const priority = isUnconfirmed ? Infinity : etx.height;
-            const existing = keyMap.get(kv.key);
-            if (!existing || priority>=existing._priority){
-              const _kstatus = vout.spent ? 'spent' : isUnconfirmed ?
-                'receiving' : 'confirmed';
-              keyMap.set(kv.key, {key: kv.key, val: kv.val, tx: etx.tx_hash,
-                vout: i, _kstatus, _priority: priority});
-            }
-          }
-        }
-      }
-      c.ownedKeys = [...keyMap.values()];
-    }
-  }
-  cs.transactions = c.transactions;
-  cs.ownedKeys = c.ownedKeys;
-  cs.cache_ver = cache_ver;
-  await db_put('walletData:'+ls.id, cs);
-  return wallet;
-}
-
 export async function wallet_fetch(wallet, force){
   let refresh = wallet._refresh;
   wallet._refresh = false;
   if (!force && !refresh && (wallet.c_wait))
     return await wallet.c_wait;
   let wait = wallet.c_wait = ewait();
-  let fn = use_wc
-    ? w=>_wallet_fetch_wc(w, refresh)
-    : w=>_wallet_fetch(w);
-  return wait.return(await fn(wallet));
+  return wait.return(await _wallet_fetch(wallet, refresh));
 }
 
 function wallet_root(wallet){
@@ -434,36 +294,6 @@ function wallet_root(wallet){
   if (c.root)
     return c.root;
   return c.root = hd_root(ls.mnemonic, netconf.network, ls.passphrase||'');
-}
-
-// Scan used addresses on chain (0=external, 1=change) with gap limit of 20.
-// Returns {used: [{address, keyPair, chain, index, hist}], nextIndex}
-export async function hd_scan(netconf, root, accountPath, chain){
-  const network = netconf.network;
-  const el = _el(netconf);
-  const GAP = HD_SCAN_GAP;
-  const used = [];
-  let lastUsed = -1;
-  let start = 0;
-  while (true){
-    const entries = Array.from({length: GAP},
-      (_, i)=>hd_addr(network, root, accountPath, chain, start+i));
-    const hists = await Promise.all(
-      entries.map(e=>el.sh_get_history(addr_sh(e.address, network)))
-    );
-    let anyUsed = false;
-    for (let i=0; i<GAP; i++){
-      if (hists[i].length>0){
-        used.push({...entries[i], hist: hists[i]});
-        lastUsed = entries[i].index;
-        anyUsed = true;
-      }
-    }
-    if (!anyUsed)
-      break;
-    start += GAP;
-  }
-  return {used, nextIndex: lastUsed+1};
 }
 
 export async function el_estimatefee(netconf){
