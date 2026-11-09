@@ -158,11 +158,12 @@ export async function wc_get_header(netconf, height){
 // Step 2: TX store with merkle proofs
 
 // Compute merkle root from txid + proof path + position
-function merkle_root_from_proof(pow, txid, merkle, pos){
+// Merkle trees always use double-SHA256 (like bitcoin), not the PoW hash
+function merkle_root_from_proof(txid, merkle, pos){
   let hash = buf_from_hex(txid).reverse();
   for (let sibling of merkle){
     let s = buf_from_hex(sibling).reverse();
-    hash = hash256_pow(pow, Buffer.concat(pos&1 ? [s, hash] : [hash, s]));
+    hash = hash256_pow('sha256', Buffer.concat(pos&1 ? [s, hash] : [hash, s]));
     pos >>= 1;
   }
   return buf_to_hex(Buffer.from(hash).reverse());
@@ -184,7 +185,7 @@ export async function wc_store_tx(netconf, txid, height){
   if (merkle_res?.error)
     return {error: 'tx_get_merkle '+txid+': '+merkle_res.error};
   let {merkle, pos} = merkle_res;
-  let computed_root = merkle_root_from_proof(netconf.pow, txid, merkle, pos);
+  let computed_root = merkle_root_from_proof(txid, merkle, pos);
   let hdr = await hdr_get(netconf.symbol, height);
   let verified = false;
   if (hdr && hdr.merkleRoot==computed_root)
@@ -218,7 +219,7 @@ export async function wc_verify_tx(netconf, txid){
   let hdr = await hdr_get(netconf.symbol, entry.height);
   if (!hdr)
     return {error: 'header not found at height '+entry.height};
-  let computed_root = merkle_root_from_proof(netconf.pow, txid, entry.merkle,
+  let computed_root = merkle_root_from_proof(txid, entry.merkle,
     entry.pos);
   entry.verified = hdr.merkleRoot==computed_root;
   await tx_put(txid, entry);

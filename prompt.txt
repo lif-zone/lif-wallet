@@ -1683,3 +1683,9 @@ CLAUDE: Modified wallet.jsx for two-phase rendering:
 - Home screen ↻ button: sets wallet._refresh=true on all wallets before re-mount.
 - wallet_db.js wallet_fetch: _refresh now also bypasses c_wait (implies force), so home ↻ works without explicit force=true.
 ---
+
+---
+USER: LIF uses its special hash only for PoW. All other hashes (including merkle tree) are regular sha256 like bitcoin.
+
+CLAUDE: Fixed merkle_root_from_proof in wallet_chain.js to always use hash256_pow("sha256") (double-SHA256) instead of passing netconf.pow. Removed the pow parameter from the function since merkle trees always use double-SHA256 regardless of network.
+---
