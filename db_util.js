@@ -6,7 +6,8 @@ let db;
 export async function db_init(){
   let slow = eslow('openDB');
   db = await openDB('bright-wallet', 3, {
-    upgrade(db, old_ver){
+    upgrade(db, old_ver, new_ver){
+      console.log(`openDB: Upgrading from v${old_ver} to v${new_ver}`);
       if (old_ver<1)
         db.createObjectStore('cache');
       if (old_ver<2)
