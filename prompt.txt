@@ -1765,3 +1765,9 @@ USER: Add broadcast_ts timestamp to local TXes. Stop rebroadcasting after 24h. O
 
 CLAUDE: Added broadcast_ts: Date.now() to tx_broadcast in tx_create.js when storing local TX. Updated rebroadcast logic in wallet_db.js _wallet_fetch: skips TXes where broadcast_ts is over 24h old. On successful rebroadcast, updates broadcast_ts (resets the 24h window). Added tx_put import from db_util.js.
 ---
+
+---
+USER: Change default LIF price from 1 USD to 0.01 USD.
+
+CLAUDE: Changed usd default from 1 to 0.01 for both lif and liftest in settings.js netconf_def.
+---
