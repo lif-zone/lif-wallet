@@ -25,6 +25,9 @@ export async function db_init(){
       // Best practice to prevent deadlocks:
       // event.target.close(); 
     },
+    terminated() {
+      console.error('openDB: Browser terminated the connection abnormally.');
+    },
   });
   slow.end();
 }
