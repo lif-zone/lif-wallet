@@ -30,7 +30,7 @@ export async function tx_broadcast(netconf, tx){
     return void console.error(`mistmatch txid ${txid} ${tx.getId()}`);
   // Store TX locally as mempool entry
   let raw = tx.toHex();
-  await tx_put(txid, {txid, raw, height: 0, verified: false});
+  await tx_put(txid, {txid, raw, height: 0, verified: false, local: true});
   // Add to scripthash histories for all output addresses
   let network = netconf.network;
   for (let out of tx.outs){

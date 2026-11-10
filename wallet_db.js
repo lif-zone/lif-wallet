@@ -11,7 +11,8 @@ import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, g_settings,
   settings_cs_load, settings_cs_fetch, lif_server_get, lif_server_set,
   addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
 } from './settings.js';
-import {db_init, db_get, db_put, cache_clear, cache_ver} from './db_util.js';
+import {db_init, db_get, db_put, cache_clear, cache_ver, tx_get}
+  from './db_util.js';
 import {_el} from './electrum.js';
 import {wc_init, wc_sync_headers, wc_hd_scan, wc_store_tx, wc_get_balance,
   wc_listunspent, wc_get_tx, wc_get_header, wc_tx_get_verbose}
@@ -164,6 +165,13 @@ async function _wallet_fetch(wallet, refresh){
     console.error('wc_sync_headers:', hdr_res.error);
   await Promise.all(all_tx.map(h=>
     wc_store_tx(netconf, h.tx_hash, h.height)));
+  // Rebroadcast our local unconfirmed TXes
+  let unconf = all_tx.filter(h=>h.height<=0);
+  for (let h of unconf){
+    let entry = await tx_get(h.tx_hash);
+    if (entry?.local && entry.raw)
+      el.tx_broadcast(entry.raw).catch(()=>{});
+  }
   cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
     {address, chain, index, hist}));
   c.receiveAddress = hd_addr(network, root, ap, 0, extRes.nextIndex).address;

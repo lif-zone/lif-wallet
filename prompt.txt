@@ -1753,3 +1753,9 @@ CLAUDE: Updated tx_broadcast in tx_create.js to store the TX locally right after
 - Input-side histories updated on next wallet entry via get_history
 - Added imports for tx_put, sh_history_get, sh_history_put, addr_sh from db_util.js and settings.js
 ---
+
+---
+USER: Local TXes (ones we broadcast) should be rebroadcast on wallet entry.
+
+CLAUDE: Added rebroadcast logic to _wallet_fetch in wallet_db.js: after storing TXes, checks for unconfirmed entries with local=true flag and rebroadcasts them (fire-and-forget, errors silently ignored). Added tx_get import from db_util.js.
+---
