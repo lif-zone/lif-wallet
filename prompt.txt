@@ -1759,3 +1759,9 @@ USER: Local TXes (ones we broadcast) should be rebroadcast on wallet entry.
 
 CLAUDE: Added rebroadcast logic to _wallet_fetch in wallet_db.js: after storing TXes, checks for unconfirmed entries with local=true flag and rebroadcasts them (fire-and-forget, errors silently ignored). Added tx_get import from db_util.js.
 ---
+
+---
+USER: Add broadcast_ts timestamp to local TXes. Stop rebroadcasting after 24h. On successful rebroadcast, update timestamp (resets 24h window).
+
+CLAUDE: Added broadcast_ts: Date.now() to tx_broadcast in tx_create.js when storing local TX. Updated rebroadcast logic in wallet_db.js _wallet_fetch: skips TXes where broadcast_ts is over 24h old. On successful rebroadcast, updates broadcast_ts (resets the 24h window). Added tx_put import from db_util.js.
+---
