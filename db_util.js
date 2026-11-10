@@ -15,7 +15,15 @@ export async function db_init(){
         db.createObjectStore('txs');
         db.createObjectStore('sh_history');
       }
-    }
+    },
+    blocked(cur_ver, blocked_ver, event){
+      console.warn('openDB: Another tab or connection is keeping an older version open!');
+    },
+    blocking(cur_ver, blocked_ver, event){
+      console.warn('openDB: THIS CONNECTION IS BLOCKING: An upgrade was requested elsewhere; closing now.');
+      // Best practice to prevent deadlocks:
+      // event.target.close(); 
+    },
   });
   slow.end();
 }
