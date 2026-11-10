@@ -174,10 +174,11 @@ async function _wallet_fetch(wallet, refresh){
       continue;
     if (entry.broadcast_ts && now-entry.broadcast_ts>24*60*60*1000)
       continue;
-    el.tx_broadcast(entry.raw).then(()=>{
+    try {
+      await el.tx_broadcast(entry.raw);
       entry.broadcast_ts = Date.now();
-      tx_put(h.tx_hash, entry);
-    }).catch(()=>{});
+      await tx_put(h.tx_hash, entry);
+    } catch(e){}
   }
   cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
     {address, chain, index, hist}));
