@@ -1,7 +1,8 @@
 // tx_create.js - TX creation, fee estimation, broadcast
 import * as bitcoin from 'bitcoinjs-lib';
-import {DUST_VAL, hd_addr} from './settings.js';
+import {DUST_VAL, hd_addr, addr_sh} from './settings.js';
 import {_el} from './electrum.js';
+import {tx_put, sh_history_get, sh_history_put} from './db_util.js';
 
 export async function el_estimatefee(netconf){
   const fallback = netconf.fee_def;
@@ -27,6 +28,26 @@ export async function tx_broadcast(netconf, tx){
   let txid = await _el(netconf).tx_broadcast(tx.toHex());
   if (txid!=tx.getId())
     return void console.error(`mistmatch txid ${txid} ${tx.getId()}`);
+  // Store TX locally as mempool entry
+  let raw = tx.toHex();
+  await tx_put(txid, {txid, raw, height: 0, verified: false});
+  // Add to scripthash histories for all output addresses
+  let network = netconf.network;
+  for (let out of tx.outs){
+    let addr;
+    try { addr = bitcoin.address.fromOutputScript(out.script, network); }
+    catch(e){ continue; }
+    let sh = addr_sh(addr, network);
+    let cached = await sh_history_get(sh);
+    if (!cached)
+      continue;
+    let entries = cached.entries || [];
+    if (!entries.some(e=>e.tx_hash==txid))
+    {
+      entries.push({tx_hash: txid, height: 0});
+      await sh_history_put(sh, {...cached, entries});
+    }
+  }
   return txid;
 }
 

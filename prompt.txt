@@ -1743,3 +1743,13 @@ CLAUDE: Created tx_create.js with all TX creation and fee estimation code moved 
 - LIF_DOMAINS, kv_is_dns
 wallet_db.js imports from tx_create.js and re-exports everything so existing imports (wallet.jsx, mine_pool.js) are unchanged. Removed unused bitcoin and DUST_VAL imports from wallet_db.js.
 ---
+
+---
+USER: After broadcast, TX should be added immediately to the local DB (wallet as mini-mempool).
+
+CLAUDE: Updated tx_broadcast in tx_create.js to store the TX locally right after successful broadcast:
+- Stores raw TX in txs store as mempool entry (height=0, verified=false)
+- Updates sh_history for all output addresses that already have cached history (adds the new txid with height=0)
+- Input-side histories updated on next wallet entry via get_history
+- Added imports for tx_put, sh_history_get, sh_history_put, addr_sh from db_util.js and settings.js
+---
