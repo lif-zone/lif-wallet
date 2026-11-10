@@ -1,8 +1,10 @@
 // db_util.js - IndexedDB cache helpers
+import {eslow} from 'lif-kernel/util';
 import {openDB} from 'idb';
 
 let db;
 export async function db_init(){
+  let slow = eslow('openDB');
   db = await openDB('bright-wallet', 3, {
     upgrade(db, old_ver){
       if (old_ver<1)
@@ -15,6 +17,7 @@ export async function db_init(){
       }
     }
   });
+  slow.end();
 }
 export async function hdr_get(net, height){
   return await db.get('headers', [net, height]) ?? null;
