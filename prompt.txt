@@ -1771,3 +1771,9 @@ USER: Change default LIF price from 1 USD to 0.01 USD.
 
 CLAUDE: Changed usd default from 1 to 0.01 for both lif and liftest in settings.js netconf_def.
 ---
+
+---
+USER: USD display always shows 2 decimal places, so small values like 0.001 show as $0.00.
+
+CLAUDE: Updated Amount component in wallet.jsx to show more decimal places for small USD values. For values >= $0.01, still uses 2 decimals. For smaller values, dynamically calculates needed decimal places to show significant digits (e.g. $0.001, $0.00003).
+---

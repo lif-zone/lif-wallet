@@ -1738,8 +1738,17 @@ function Amount({sat, symbol, signed, cost}){
   let content;
   if (mode=='usd'){
     const usd_price = OV(settings.netconf).find(nc=>nc.symbol==symbol)?.usd||0;
-    const usd_val = Math.ceil(Math.abs(sat)/1e8*usd_price*100)/100;
-    content = <>{sign}${usd_val.toFixed(2)}{sym}</>;
+    const usd_raw = Math.abs(sat)/1e8*usd_price;
+    let usd_str;
+    if (usd_raw>=0.01)
+      usd_str = (Math.ceil(usd_raw*100)/100).toFixed(2);
+    else if (usd_raw==0)
+      usd_str = '0.00';
+    else {
+      let digits = Math.max(2, -Math.floor(Math.log10(usd_raw))+1);
+      usd_str = usd_raw.toFixed(digits);
+    }
+    content = <>{sign}${usd_str}{sym}</>;
   } else {
     const [int, dec] = (Math.abs(sat)/1e8).toFixed(8).split('.');
     const sig = dec.replace(/0+$/, '');
