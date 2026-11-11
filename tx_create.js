@@ -207,6 +207,102 @@ export function tx_send({wallet, saddr_to, value, fee, in_calc}){
   return tx_fund({wallet, p, fee});
 }
 
+export function tx_send_unsigned({wallet, saddr_to, value, fee, in_calc}){
+  if (!fee && !in_calc)
+    return tx_fee_calc(tx_send_unsigned, arguments[0]);
+  const {network} = wallet;
+  const p = tx_psbt(network);
+  p.addOutput({address: saddr_to, value: BigInt(value)});
+  return tx_fund_unsigned({wallet, p, fee});
+}
+
+function tx_fund_unsigned({wallet, p, fee}){
+  const {c, netconf, network} = wallet;
+  const _sum_out = Number(
+    p.txOutputs.reduce((sum, output)=>sum+output.value, 0n));
+  if (fee==null){
+    let {mock} = netconf;
+    let pe = tx_psbt(network);
+    for (let o of p.txOutputs)
+      pe.addOutput(o);
+    pe.addInput({hash: mock.tx_hash, index: 0,
+      witnessUtxo: {value: BigInt(_sum_out+1),
+      script: bitcoin.address.toOutputScript(mock.address, network)}});
+    pe.addOutput({address: mock.address, value: 1n});
+    pe.signInput(0, mock.keyPair);
+    pe.finalizeAllInputs();
+    let tx = pe.extractTransaction();
+    return {tx, fee};
+  }
+  fee ||= 1;
+  const sum_out = _sum_out+fee;
+  let sum_in = 0;
+  const utxos = [...c.utxos].sort((a,b)=>b.value-a.value)
+    .filter(u=>u.value>DUST_VAL);
+  const selected = [];
+  if (!utxos.length)
+    return {err: 'no funds'};
+  if (utxos[0].value>=sum_out){
+    let coin = utxos[0];
+    for (let u of utxos){
+      if (u.value<sum_out)
+        break;
+      coin = u;
+    }
+    selected.push(coin);
+    sum_in += Number(coin.value);
+  } else {
+    for (let u of utxos){
+      selected.push(u);
+      sum_in += Number(u.value);
+      if (sum_in>=sum_out)
+        break;
+    }
+  }
+  for (let u of selected){
+    let input = {hash: u.tx_hash, index: u.tx_pos,
+      witnessUtxo: {value: BigInt(u.value),
+      script: bitcoin.address.toOutputScript(u.addrInfo.address, network)}};
+    if (u.addrInfo.bip32){
+      input.bip32Derivation = [u.addrInfo.bip32];
+    }
+    p.addInput(input);
+  }
+  if (sum_in<sum_out)
+    return {err: 'insufficient funds'};
+  if (sum_in-sum_out>DUST_VAL)
+    p.addOutput({address: c.changeAddrInfo.address, value: BigInt(sum_in-sum_out)});
+  return {psbt: p, fee, _fee: sum_in-sum_out};
+}
+
+export function psbt_sign(psbt, wallet){
+  const {c, network} = wallet;
+  const addrs = c.addrs||[];
+  let signed = 0;
+  for (let i=0; i<psbt.inputCount; i++){
+    let input_script = psbt.data.inputs[i].witnessUtxo?.script;
+    if (!input_script)
+      continue;
+    let addr;
+    try { addr = bitcoin.address.fromOutputScript(input_script, network); }
+    catch(e){ continue; }
+    let info = addrs.find(a=>a.address==addr);
+    if (!info?.keyPair)
+      continue;
+    psbt.signInput(i, info.keyPair);
+    signed++;
+  }
+  return signed;
+}
+
+export function psbt_finalize_broadcast(psbt_hex, netconf){
+  let network = netconf.network;
+  let psbt = bitcoin.Psbt.fromHex(psbt_hex, {network});
+  psbt.finalizeAllInputs();
+  let tx = psbt.extractTransaction();
+  return tx_broadcast(netconf, tx);
+}
+
 export function kv_tx_add({wallet, key, val, fee, in_calc}){
   if (!fee && !in_calc)
     return tx_fee_calc(kv_tx_add, arguments[0]);

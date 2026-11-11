@@ -13,7 +13,8 @@ import {settings_get, settings_save, settings_cs_fetch,
   wallet_db_init, wallet_fetch, wallet_subscribe,
   wallet_add, wallet_del, wallet_update, wallets_get, wallet_get,
   hd_wallet, hd_path_def, hd_root, hd_xpub, hd_addr, addr_valid,
-  _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
+  _el, tx_send, tx_send_unsigned, psbt_sign, psbt_finalize_broadcast,
+  kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
   wallet_cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
   buf_to_hex, db_clear_all, parse_xpub, parse_xkey, xpub_derive_addr,
@@ -358,7 +359,7 @@ function BrightWallet(){
       setScreen('tx_info');
     else if (screen=='tx_info' || screen=='kv_info')
       setScreen('wallet_info');
-    else if (screen=='wallet_sign_message')
+    else if (screen=='wallet_sign_message' || screen=='wallet_sign_psbt')
       setScreen('wallet_settings');
     else if (screen=='wallet_send' || screen=='wallet_receive' ||
       screen=='wallet_kv_add' || screen=='wallet_kv_add_raw' || screen=='wallet_settings' ||
@@ -451,6 +452,9 @@ function BrightWallet(){
       {screen=='wallet_sign_message' && wallet && (
         <Sign_message_screen wallet={wallet} />
       )}
+      {screen=='wallet_sign_psbt' && wallet && (
+        <Sign_psbt_screen wallet={wallet} />
+      )}
       {screen=='wallet_get_domain' && wallet && (
         <Get_domain_screen
           wallet={wallet}
@@ -477,6 +481,7 @@ function BrightWallet(){
           onUpdate={(changes)=>updateWallet(wallet.ls.id, changes)}
           onDelete={()=>deleteWallet(wallet.ls.id)}
           onSignMessage={()=>setScreen('wallet_sign_message')}
+          onSignPsbt={()=>setScreen('wallet_sign_psbt')}
         />
       )}
       {screen=='wallet_mine' && wallet && (
@@ -1083,6 +1088,7 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
       <div style={{display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center'}}>
         <button onClick={onReceive}>Receive</button>
         {!is_watch && <button onClick={onSend}>Send</button>}
+        {wallet.ls.type=='zpub' && <button onClick={onSend}>Send (PSBT)</button>}
         {!is_watch && netconf.lif_kv && <button onClick={onKvAdd}>Get Domain Name</button>}
         {!is_watch && netconf.lif_kv && settings.ls.advanced && <button onClick={onKvAddRaw}>Get Key/Val</button>}
         {!is_watch && netconf.lif_kv && <button onClick={onMine}>Mine</button>}
@@ -1247,7 +1253,8 @@ function Xpub_export({xpub}){
   );
 }
 
-function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage}){
+function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage,
+  onSignPsbt}){
   const {netconf} = wallet;
   const [name, setName] = useState(wallet.ls.name);
   const [showBackup, setShowBackup] = useState(false);
@@ -1357,6 +1364,9 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage}){
         }
         {!is_watch &&
           <button onClick={onSignMessage}>Sign Message</button>
+        }
+        {!is_watch &&
+          <button onClick={onSignPsbt}>Sign PSBT</button>
         }
         <button
           onClick={()=>setShowDelete(true)}
@@ -1542,6 +1552,111 @@ function Sign_message_screen({wallet}){
       {result && (
         <p style={{marginTop: 8,
           color: result.ok ? 'green' : 'red'}}>{result.msg}</p>
+      )}
+    </div>
+  );
+}
+
+// Sign PSBT Screen
+function Sign_psbt_screen({wallet}){
+  const modal = useModal();
+  const {netconf, network} = wallet;
+  const [phase, setPhase] = useState('scan');
+  const [signedHex, setSignedHex] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const qrCanvasRef = useRef(null);
+  const stopScan = ()=>{
+    streamRef.current?.getTracks().forEach(t=>t.stop());
+    streamRef.current = null;
+    setScanning(false);
+  };
+  const startScan = async()=>{
+    if (!window.BarcodeDetector)
+      return void await modal.alert('QR scanning not supported');
+    try {
+      let stream = await navigator.mediaDevices.getUserMedia(
+        {video: {facingMode: 'environment'}});
+      streamRef.current = stream;
+      setScanning(true);
+    } catch(e){
+      await modal.alert('Camera not available: '+e.message);
+    }
+  };
+  useEffect(()=>{
+    if (phase=='scan' && !scanning)
+      startScan();
+  }, []);
+  useEffect(()=>{
+    if (!scanning || !videoRef.current)
+      return;
+    videoRef.current.srcObject = streamRef.current;
+    let detector = new window.BarcodeDetector({formats: ['qr_code']});
+    let rafId;
+    let scan = async()=>{
+      try {
+        let codes = await detector.detect(videoRef.current);
+        if (codes.length){
+          let hex = codes[0].rawValue.trim();
+          stopScan();
+          try {
+            let psbt = bitcoin.Psbt.fromHex(hex, {network});
+            let signed = psbt_sign(psbt, wallet);
+            if (!signed)
+              return void await modal.alert(
+                'No inputs matched this wallet\'s addresses');
+            setSignedHex(psbt.toHex());
+            setPhase('show');
+          } catch(e){
+            await modal.alert('Failed to sign: '+e.message);
+          }
+          return;
+        }
+      } catch(e){}
+      rafId = requestAnimationFrame(scan);
+    };
+    videoRef.current.onplay = ()=>{ rafId = requestAnimationFrame(scan); };
+    return ()=>{ cancelAnimationFrame(rafId); };
+  }, [scanning]);
+  useEffect(()=>{
+    if (phase!='show' || !qrCanvasRef.current || !signedHex)
+      return;
+    (async()=>{
+      let QRCode = (await import('qrcode')).default;
+      QRCode.toCanvas(qrCanvasRef.current, signedHex,
+        {width: 300, margin: 2, errorCorrectionLevel: 'L'});
+    })();
+  }, [phase, signedHex]);
+  if (phase=='show')
+    return (
+      <div style={{marginTop: 16, maxWidth: 480}}>
+        <h3>Signed PSBT</h3>
+        <p style={{fontSize: 13, color: '#666'}}>
+          Scan this QR with the watch-only wallet to broadcast.
+        </p>
+        <canvas ref={qrCanvasRef} style={{display: 'block', marginTop: 8}} />
+      </div>
+    );
+  return (
+    <div style={{marginTop: 16, maxWidth: 480}}>
+      <h3>Sign PSBT</h3>
+      <p style={{fontSize: 13, color: '#666'}}>
+        Scan an unsigned PSBT QR code to sign it with this wallet.
+      </p>
+      {scanning && (
+        <div style={{marginTop: 12, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', gap: 16}}>
+          <video ref={videoRef} autoPlay playsInline
+            style={{width: 300, height: 300, objectFit: 'cover', borderRadius: 8,
+              border: '2px solid #ccc'}} />
+          <button onClick={stopScan}>Cancel</button>
+        </div>
+      )}
+      {!scanning && (
+        <button onClick={startScan} style={{marginTop: 12}}>
+          Scan PSBT QR Code
+        </button>
       )}
     </div>
   );
@@ -2432,18 +2547,30 @@ function Amount_field({value, onChange, symbol, onValid, onBlur, min=0, autoFocu
 function Send_screen({wallet, onSent}){
   const modal = useModal();
   const {netconf, network, c: {utxos=[], changeAddrInfo}} = wallet;
+  const is_watch = wallet.ls.type=='watch' || wallet.ls.type=='zpub';
   const {setValid, isValid} = useFormValid();
   const [toAddress, setToAddress] = useState('');
   const [amountSat, setAmountSat] = useState(0);
   const [sending, setSending] = useState(false);
   const [fee, setFee] = useState(0);
+  const [psbtHex, setPsbtHex] = useState('');
+  const [psbtPhase, setPsbtPhase] = useState(null);
+  const qrCanvasRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [scanning, setScanning] = useState(false);
   const bal = wallet_bal(wallet);
   const balOk = amountSat + fee <= bal;
   useEffect(()=>{ setValid('bal', balOk); }, [balOk]);
   useEffect(()=>{
     const value = amountSat || 1;
-    const saddr_to = toAddress || changeAddrInfo.address;
-    setFee(tx_send({wallet, saddr_to, value}).fee||0);
+    const saddr_to = toAddress || changeAddrInfo?.address;
+    if (!saddr_to)
+      return;
+    let r = is_watch
+      ? tx_send_unsigned({wallet, saddr_to, value})
+      : tx_send({wallet, saddr_to, value});
+    setFee(r.fee||0);
   }, [amountSat, utxos]);
   const handleSendAll = ()=>setAmountSat(Math.max(1, bal - fee));
   const handleSend = async()=>{
@@ -2467,10 +2594,93 @@ function Send_screen({wallet, onSent}){
       setSending(false);
     }
   };
+  const handleCreatePsbt = ()=>{
+    let r = tx_send_unsigned({wallet, saddr_to: toAddress, value: amountSat,
+      fee});
+    if (r.err)
+      return void modal.alert(r.err);
+    let hex = r.psbt.toHex();
+    setPsbtHex(hex);
+    setPsbtPhase('show');
+  };
+  useEffect(()=>{
+    if (psbtPhase!='show' || !qrCanvasRef.current || !psbtHex)
+      return;
+    (async()=>{
+      let QRCode = (await import('qrcode')).default;
+      QRCode.toCanvas(qrCanvasRef.current, psbtHex,
+        {width: 300, margin: 2, errorCorrectionLevel: 'L'});
+    })();
+  }, [psbtPhase, psbtHex]);
+  const stopScan = ()=>{
+    streamRef.current?.getTracks().forEach(t=>t.stop());
+    streamRef.current = null;
+    setScanning(false);
+  };
+  const startScanSigned = async()=>{
+    if (!window.BarcodeDetector)
+      return void await modal.alert('QR scanning not supported');
+    try {
+      let stream = await navigator.mediaDevices.getUserMedia(
+        {video: {facingMode: 'environment'}});
+      streamRef.current = stream;
+      setScanning(true);
+      setPsbtPhase('scan');
+    } catch(e){
+      await modal.alert('Camera not available: '+e.message);
+    }
+  };
+  useEffect(()=>{
+    if (psbtPhase!='scan' || !scanning || !videoRef.current)
+      return;
+    videoRef.current.srcObject = streamRef.current;
+    let detector = new window.BarcodeDetector({formats: ['qr_code']});
+    let rafId;
+    let scan = async()=>{
+      try {
+        let codes = await detector.detect(videoRef.current);
+        if (codes.length){
+          let hex = codes[0].rawValue.trim();
+          stopScan();
+          setSending(true);
+          try {
+            let txid = await psbt_finalize_broadcast(hex, netconf);
+            await modal.alert('Transaction broadcast!\nTXID: '+txid);
+            onSent?.();
+          } catch(e){
+            await modal.alert('Broadcast failed: '+e.message);
+          } finally {
+            setSending(false);
+          }
+          return;
+        }
+      } catch(e){}
+      rafId = requestAnimationFrame(scan);
+    };
+    videoRef.current.onplay = ()=>{ rafId = requestAnimationFrame(scan); };
+    return ()=>{ cancelAnimationFrame(rafId); };
+  }, [psbtPhase, scanning]);
   const symbol = netconf.symbol;
+  if (psbtPhase=='show')
+    return (
+      <div style={{marginTop: 16, maxWidth: 480}}>
+        <h3>Unsigned PSBT</h3>
+        <p style={{fontSize: 13, color: '#666'}}>
+          Scan this QR with a signing wallet, then scan the signed PSBT back.
+        </p>
+        <canvas ref={qrCanvasRef} style={{display: 'block', marginTop: 8}} />
+        <div style={{marginTop: 12, display: 'flex', gap: 8,
+          alignItems: 'flex-start', flexDirection: 'column'}}>
+          <button onClick={startScanSigned}>
+            Scan signed PSBT
+          </button>
+          <button onClick={()=>setPsbtPhase(null)}>Back</button>
+        </div>
+      </div>
+    );
   return (
     <div style={{marginTop: 16, maxWidth: 400}}>
-      <h3>Send {symbol}</h3>
+      <h3>Send {symbol}{is_watch ? ' (PSBT)' : ''}</h3>
       <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
         <Balance_available bal={bal} symbol={symbol} cost={amountSat+fee} />
         <button onClick={handleSendAll} style={{whiteSpace: 'nowrap', fontSize: 12}}>Send all funds</button>
@@ -2478,9 +2688,30 @@ function Send_screen({wallet, onSent}){
       <Addr_field value={toAddress} onChange={setToAddress} netconf={netconf} onValid={v=>setValid('addr',v)} />
       <Amount_field value={amountSat} onChange={setAmountSat} symbol={symbol} onValid={v=>setValid('amount',v)} min={1} />
       <Fee_field value={fee} onChange={setFee} netconf={netconf} />
-      <button onClick={handleSend} disabled={sending||!isValid} style={{marginTop: 8}}>
-        {sending ? 'Sending…' : 'Send'}
-      </button>
+      {is_watch
+        ? <button onClick={handleCreatePsbt} disabled={sending||!isValid}
+            style={{marginTop: 8}}>
+            Create PSBT
+          </button>
+        : <button onClick={handleSend} disabled={sending||!isValid}
+            style={{marginTop: 8}}>
+            {sending ? 'Sending…' : 'Send'}
+          </button>
+      }
+      {scanning && (
+        <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          zIndex: 1000, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 16}}>
+          <video ref={videoRef} autoPlay playsInline
+            style={{width: 300, height: 300, objectFit: 'cover', borderRadius: 8,
+              border: '2px solid white'}} />
+          <button onClick={stopScan}
+            style={{color: 'white', background: 'transparent',
+              border: '1px solid white', padding: '6px 20px'}}>
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }

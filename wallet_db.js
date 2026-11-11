@@ -19,7 +19,8 @@ import {wc_init, wc_sync_headers, wc_hd_scan, wc_zpub_scan, wc_addr_scan,
   wc_store_tx, wc_get_balance, wc_listunspent, wc_get_tx, wc_get_header,
   wc_tx_get_verbose, wc_check_reorg} from './wallet_chain.js';
 import {el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
-  wallet_bal, tx_send, kv_tx_add, kv_tx_send, kv_tx_edit,
+  wallet_bal, tx_send, tx_send_unsigned, psbt_sign, psbt_finalize_broadcast,
+  kv_tx_add, kv_tx_send, kv_tx_edit,
   LIF_DOMAINS, kv_is_dns} from './tx_create.js';
 
 export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
@@ -27,7 +28,8 @@ export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, hd_xpub, addr_valid,
   parse_xkey,
   _el, el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
-  wallet_bal, tx_send, kv_tx_add, kv_tx_send, kv_tx_edit,
+  wallet_bal, tx_send, tx_send_unsigned, psbt_sign, psbt_finalize_broadcast,
+  kv_tx_add, kv_tx_send, kv_tx_edit,
   LIF_DOMAINS, kv_is_dns, db_clear_all, parse_xpub, xpub_derive_addr,
   sign_message, verify_message};
 
