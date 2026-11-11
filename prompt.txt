@@ -1895,3 +1895,6 @@ CLAUDE: Added three features:
 ---
 USER: In wallet settings, enable "Export read-only wallet" button for watch-only wallets too, showing QR just like regular wallets.
 CLAUDE: Changed xpub_str derivation in Wallet_settings_subscreen to also return wallet.ls.zpub for zpub-type wallets and joined addresses for address-type wallets. The "Export read-only wallet" button and Xpub_export QR+text display now works for all wallet types.
+---
+USER: Rename "Backup Wallet" to "Export/Backup Wallet", add QR code export inside the backup screen showing the mnemonic.
+CLAUDE: Renamed button to "Export/Backup Wallet". Added "Show QR Code" toggle button in the backup screen's show phase. QR encodes the BIP39 mnemonic words (the universal wallet backup format). Shows a note below the QR: "Seed words (BIP39 mnemonic)" and warns "passphrase not included in QR" if the wallet has a passphrase. QR hides when toggled off or when entering verify phase.
