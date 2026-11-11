@@ -1880,3 +1880,6 @@ CLAUDE: The wallet had wrong bip32 version bytes for LIF (0x019da4e0/0x019da380 
 ---
 USER: Solo mining always uses the same address. It captures receiveAddress once at start and never updates during the loop.
 CLAUDE: Moved `saddr = wallet.c.receiveAddress` from outside the while loop to inside it, so each mining iteration uses the current receive address. After a successful mine triggers a wallet refresh, the next iteration picks up the new address.
+---
+USER: Take checkpoints out of wallet_chain.js, into checkpoint.js (just the "data" tables)
+CLAUDE: Extracted the CHECKPOINTS data object (LIF, tLIF, BTC, tBTC arrays of [height, hash] pairs) from wallet_chain.js into a new checkpoint.js file. Added `import {CHECKPOINTS} from './checkpoint.js'` to wallet_chain.js. The checkpoint helper functions (checkpoint_find, checkpoint_find_above, checkpoint_latest) remain in wallet_chain.js.
