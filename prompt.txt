@@ -1814,3 +1814,7 @@ CLAUDE:
 - wallet_chain.js: Expanded BTC checkpoints from 16 (every 50K) to 190 entries (every 5K, from 5000-950000). Added Full SPV mode: when g_settings.ls.full_spv is enabled, wc_sync_headers extends header ranges from nearest checkpoint to TX height (instead of just 100 back), so every header from checkpoint to TX is fetched, validated (prevHash + PoW + bits vs difficulty chain), and stored.
 - wallet.jsx: Added "Full SPV (validate all headers from checkpoint)" checkbox in Settings_screen, stored in settings.ls.full_spv.
 ---
+
+---
+USER: make Full SPV the default for both BTC and LIF
+CLAUDE: Added `ls.full_spv = ls.full_spv ?? true;` in `settings_load()` in settings.js, so Full SPV defaults to enabled for new users while preserving existing users' choice if they explicitly disabled it.

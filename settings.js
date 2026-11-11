@@ -177,6 +177,7 @@ export async function settings_load(){
   const {ls} = g_settings;
   ls.lif_server ||= LIF_SERVER_DEF;
   ls.devtools = !! ls.devtools;
+  ls.full_spv = ls.full_spv ?? true;
   ls.netconf ||= {};
   s.netconf = {};
   s.netconf_def = netconf_def;
