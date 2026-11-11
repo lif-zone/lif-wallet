@@ -259,25 +259,35 @@ export function hd_xpub(mnemonic, network, passphrase='', accountPath){
   return root.derivePath(accountPath).neutered().toBase58();
 }
 
+const xkey_versions = [
+  {bip32: {public: 0x0488B21E, private: 0x0488ADE4}, net: 'btc'}, // xpub/xprv
+  {bip32: {public: 0x04b24746, private: 0x04b2430c}, net: 'btc'}, // zpub/zprv
+  {bip32: {public: 0x049d7cb2, private: 0x049d7878}, net: 'btc'}, // ypub/yprv
+  {bip32: {public: 0x045f1cf6, private: 0x045f18bc}, net: 'btc_testnet'}, // vpub/vprv
+  {bip32: {public: 0x043587CF, private: 0x04358394}, net: 'btc_testnet'}, // tpub/tprv
+  {bip32: {public: 0x5d6413db, private: 0x5d631e9c}, net: 'lif'}, // Lpub/Lprv
+];
+
 // Parse extended public key (xpub/zpub/ypub) with flexible version handling
 export function parse_xpub(xpub_str, network){
   // Try with network's native bip32 versions
   try { return bip32.fromBase58(xpub_str, network); }
   catch(e){}
-  // Try known extended key versions
-  const versions = [
-    {bip32: {public: 0x0488B21E, private: 0x0488ADE4}}, // xpub
-    {bip32: {public: 0x04b24746, private: 0x04b2430c}}, // zpub
-    {bip32: {public: 0x049d7cb2, private: 0x049d7878}}, // ypub
-    {bip32: {public: 0x045f1cf6, private: 0x045f18bc}}, // vpub (testnet zpub)
-    {bip32: {public: 0x043587CF, private: 0x04358394}}, // tpub
-    {bip32: {public: 0x5d6413db, private: 0x5d631e9c}}, // Lpub (LIF)
-  ];
-  for (let v of versions){
+  for (let v of xkey_versions){
     try { return bip32.fromBase58(xpub_str, v); }
     catch(e){}
   }
   throw new Error('Invalid XPUB');
+}
+
+export function parse_xkey(str){
+  for (let v of xkey_versions){
+    try {
+      let node = bip32.fromBase58(str, v);
+      return {node, net: v.net, is_priv: !!node.privateKey};
+    } catch(e){}
+  }
+  return null;
 }
 
 export function xpub_derive_addr(network, node, chain, index){

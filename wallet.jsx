@@ -16,7 +16,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
   wallet_cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
-  buf_to_hex, db_clear_all, parse_xpub, xpub_derive_addr,
+  buf_to_hex, db_clear_all, parse_xpub, parse_xkey, xpub_derive_addr,
 } from './wallet_db.js';
 import {mine_stats_calc, mine_stats_calc_default} from './mine.js';
 import {mine_solo, mine_instant, mine_instant_pool, mine_slave_set} from './mine_pool.js';
@@ -667,6 +667,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
     ()=>hd_path_def(netconfs['lif']));
   const [mnemonicInput, setMnemonicInput] = useState(bip39.generateMnemonic());
   const [watchInput, setWatchInput] = useState('');
+  const [xprivKey, setXprivKey] = useState('');
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -712,7 +713,45 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
         const codes = await detector.detect(videoRef.current);
         if (codes.length){
           let val = codes[0].rawValue.trim();
-          setWatchInput(prev=>prev ? prev+'\n'+val : val);
+          let words = val.split(/\s+/);
+          if ((words.length==12||words.length==24)
+            && bip39.validateMnemonic(val.toLowerCase()))
+          {
+            setMnemonicInput(val.toLowerCase());
+            setWatchOnly(false);
+            setXprivKey('');
+            stopScan();
+            return;
+          }
+          let xk = parse_xkey(val);
+          if (xk){
+            let nk = xk.net;
+            setNetworkKey(nk);
+            setDerivPath(hd_path_def(netconfs[nk]));
+            if (xk.is_priv){
+              setXprivKey(val);
+              setWatchOnly(false);
+              setMnemonicInput('');
+            } else {
+              setWatchInput(val);
+              setWatchOnly(true);
+              setXprivKey('');
+            }
+            stopScan();
+            return;
+          }
+          for (let [nk, nc] of OE(netconfs)){
+            if (addr_valid(nc.network, val)){
+              setNetworkKey(nk);
+              setDerivPath(hd_path_def(nc));
+              setWatchInput(val);
+              setWatchOnly(true);
+              setXprivKey('');
+              stopScan();
+              return;
+            }
+          }
+          setError('QR code not recognized');
           stopScan();
           return;
         }
@@ -767,6 +806,15 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
         network: networkKey, type: 'watch', addresses: addrs});
       return;
     }
+    // xpriv wallet
+    if (xprivKey){
+      let xk = parse_xkey(xprivKey);
+      if (!xk || !xk.is_priv)
+        return void setError('Invalid extended private key');
+      onAdd({id: Date.now().toString(), name: name.trim(),
+        network: networkKey, xpriv: xprivKey, derivPath: 'm'});
+      return;
+    }
     // HD wallet
     const cleaned = mnemonicInput.trim().toLowerCase();
     if (!bip39.validateMnemonic(cleaned))
@@ -786,9 +834,17 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
     <div style={{maxWidth: 480}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <h2 style={{margin: 0}}>Add Wallet</h2>
-        {!watchOnly && !showAdvanced &&
-          <button onClick={()=>setShowAdvanced(true)}>Advanced</button>
-        }
+        <div style={{display: 'flex', gap: 8}}>
+          <button onClick={startScan}
+            style={{display: 'flex', alignItems: 'center', gap: 4}}>
+            <img src={import.meta.resolve('./qrcode.svg')}
+              style={{width: 16, height: 16}} />
+            Import from QR Code
+          </button>
+          {!watchOnly && !showAdvanced && !xprivKey &&
+            <button onClick={()=>setShowAdvanced(true)}>Advanced</button>
+          }
+        </div>
       </div>
       <div style={{marginTop: 12}}>
         <label>Name:</label>
@@ -826,7 +882,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
           Watch-only wallet
         </label>
       </div>
-      {!watchOnly && <>
+      {!watchOnly && !xprivKey && <>
         <div style={{marginTop: 12}}>
           <label>Wallet secret 12 words - WRITE THIS DOWN ON PAPER:</label>
           <textarea
@@ -870,13 +926,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
       </>}
       {watchOnly && (
         <div style={{marginTop: 12}}>
-          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-            <label>XPUB or Address:</label>
-            <button onClick={startScan} title="Scan QR code"
-              style={{padding: '2px 4px', lineHeight: 0}}>
-              <img src={import.meta.resolve('./qrcode.svg')} style={{width: 20, height: 20}} />
-            </button>
-          </div>
+          <label>XPUB or Address:</label>
           <textarea
             rows={4}
             value={watchInput}
@@ -885,20 +935,34 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
             style={{display: 'block', width: '100%', marginTop: 6, fontFamily: 'monospace',
               fontSize: 13, boxSizing: 'border-box'}}
           />
-          {scanning && (
-            <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-              zIndex: 1000, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 16}}>
-              <video ref={videoRef} autoPlay playsInline
-                style={{width: 300, height: 300, objectFit: 'cover', borderRadius: 8,
-                  border: '2px solid white'}} />
-              <button onClick={stopScan}
-                style={{color: 'white', background: 'transparent',
-                  border: '1px solid white', padding: '6px 20px'}}>
-                Cancel
-              </button>
-            </div>
-          )}
+        </div>
+      )}
+      {xprivKey && !watchOnly && (
+        <div style={{marginTop: 12}}>
+          <label>Extended private key (imported from QR):</label>
+          <div style={{marginTop: 6, fontFamily: 'monospace', fontSize: 12,
+            wordBreak: 'break-all', padding: 8, background: '#f5f5f5',
+            borderRadius: 4, border: '1px solid #ddd'}}>
+            {xprivKey}
+          </div>
+          <button onClick={()=>{ setXprivKey(''); setMnemonicInput(bip39.generateMnemonic()); }}
+            style={{marginTop: 6, fontSize: 12}}>
+            Clear and use mnemonic instead
+          </button>
+        </div>
+      )}
+      {scanning && (
+        <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          zIndex: 1000, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 16}}>
+          <video ref={videoRef} autoPlay playsInline
+            style={{width: 300, height: 300, objectFit: 'cover', borderRadius: 8,
+              border: '2px solid white'}} />
+          <button onClick={stopScan}
+            style={{color: 'white', background: 'transparent',
+              border: '1px solid white', padding: '6px 20px'}}>
+            Cancel
+          </button>
         </div>
       )}
       {error && <p style={{color: 'red', marginTop: 8}}>{error}</p>}
@@ -957,10 +1021,10 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
   const is_watch = wallet.ls.type=='watch' || wallet.ls.type=='zpub';
   const prevRefreshTick = useRef(refreshTick);
   useEffect(()=>{
-    if (!is_watch && !bip39.validateMnemonic(wallet.ls.mnemonic))
+    if (!is_watch && !wallet.ls.xpriv
+      && !bip39.validateMnemonic(wallet.ls.mnemonic))
       return;
-    if (prevRefreshTick.current!=refreshTick)
-    {
+    if (prevRefreshTick.current!=refreshTick){
       wallet._refresh = true;
       prevRefreshTick.current = refreshTick;
     }
@@ -1196,6 +1260,14 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
       return wallet.ls.zpub;
     if (wallet.ls.type=='watch')
       return (wallet.ls.addresses||[]).join('\n');
+    if (wallet.ls.xpriv){
+      try {
+        let xk = parse_xkey(wallet.ls.xpriv);
+        return xk ? xk.node.neutered().toBase58() : null;
+      } catch(e){
+        return null;
+      }
+    }
     if (!wallet.ls.mnemonic)
       return null;
     try {
@@ -1205,7 +1277,7 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
       return null;
     }
   }, [wallet.ls.mnemonic, wallet.ls.passphrase, derivPath,
-    wallet.ls.type, wallet.ls.zpub]);
+    wallet.ls.type, wallet.ls.zpub, wallet.ls.xpriv]);
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
@@ -1218,7 +1290,7 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
           <button onClick={toggle_advanced}>
             Advanced: {advanced ? 'On' : 'Off'}
           </button>
-          {!is_watch &&
+          {!is_watch && wallet.ls.mnemonic &&
             <button onClick={()=>setShowBackup(true)}>Export/Backup Wallet</button>
           }
           {xpub_str &&
@@ -2518,7 +2590,9 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
       </div>
       <Fee_field value={fee} onChange={setFee} netconf={netconf} />
       <Balance_and_mine bal={bal} wallet={wallet} cost={fee} onSufficient={ok=>setValid('bal', ok)} />
-      <Wallet_backup wallet={wallet} onUpdate={onUpdate} />
+      {wallet.ls.mnemonic &&
+        <Wallet_backup wallet={wallet} onUpdate={onUpdate} />
+      }
       <button onClick={handle_add} disabled={sending||!isValid||nameStatus=='taken'} style={{marginTop: 12}}>
         {sending ? 'Registering…' : 'Register'}
       </button>
