@@ -1905,3 +1905,12 @@ CLAUDE: Simplified both PSBT screens in wallet.jsx:
 - Sign_psbt_screen (sign PSBT): Replaced auto-start camera + separate paste input with textarea + scan icon for unsigned PSBT input + Sign button. Scanner populates textarea. Signed PSBT display: QR canvas + clickable copyable hex text.
 - Both use fullscreen overlay for camera scanning, consistent pattern.
 - Removed separate "Scan signed PSBT" / "Scan PSBT QR Code" buttons and "Or paste" labeled inputs.
+---
+USER: Remove "Watch-only wallet" checkbox from Add Wallet. The single mnemonic textarea should handle everything: mnemonic, zpub/Lpub, bc1/lif1 addresses. Placeholder should hint what can be entered.
+CLAUDE: Simplified Add Wallet screen in wallet.jsx:
+- Removed watchOnly state, watchInput state, watch-only checkbox, and separate watch-only textarea
+- Single textarea now handles mnemonic words, xpub keys, and addresses
+- Placeholder updated to: "Enter the 12 or 24 secret words...\nor enter zpub... or lif1... for watch-only" (adapts to selected network)
+- handleAdd detects input type: tries xpub first, then address(es), then mnemonic
+- QR scanner now puts zpub/address values into the same mnemonicInput field
+- Passphrase and Advanced options still shown (only relevant for mnemonic, ignored for xpub/address)

@@ -671,14 +671,12 @@ function Wallet_card({wallet, onClick, onMine, onMinePool}){
 
 // Add Wallet Screen
 function Wallet_add_screen({wallets, onAdd, onCancel}){
-  const [watchOnly, setWatchOnly] = useState(false);
   const [networkKey, setNetworkKey] = useState('lif');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const netconfs = settings.netconf;
   const [derivPath, setDerivPath] = useState(
     ()=>hd_path_def(netconfs['lif']));
   const [mnemonicInput, setMnemonicInput] = useState(bip39.generateMnemonic());
-  const [watchInput, setWatchInput] = useState('');
   const [xprivKey, setXprivKey] = useState('');
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef(null);
@@ -730,7 +728,6 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
             && bip39.validateMnemonic(val.toLowerCase()))
           {
             setMnemonicInput(val.toLowerCase());
-            setWatchOnly(false);
             setXprivKey('');
             stopScan();
             return;
@@ -742,11 +739,9 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
             setDerivPath(hd_path_def(netconfs[nk]));
             if (xk.is_priv){
               setXprivKey(val);
-              setWatchOnly(false);
               setMnemonicInput('');
             } else {
-              setWatchInput(val);
-              setWatchOnly(true);
+              setMnemonicInput(val);
               setXprivKey('');
             }
             stopScan();
@@ -756,8 +751,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
             if (addr_valid(nc.network, val)){
               setNetworkKey(nk);
               setDerivPath(hd_path_def(nc));
-              setWatchInput(val);
-              setWatchOnly(true);
+              setMnemonicInput(val);
               setXprivKey('');
               stopScan();
               return;
@@ -781,44 +775,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
   const handleAdd = ()=>{
     setError('');
     const network = netconf.network;
-    if (watchOnly){
-      let lines = watchInput.trim().split(/[\n,]+/).map(s=>s.trim())
-        .filter(Boolean);
-      if (!lines.length)
-        return void setError('Enter an XPUB or Address');
-      let xpubs = [];
-      let addrs = [];
-      for (let line of lines){
-        let is_xpub = false;
-        try {
-          let node = parse_xpub(line, network);
-          xpub_derive_addr(network, node, 0, 0);
-          is_xpub = true;
-        } catch(e){}
-        if (is_xpub){
-          xpubs.push(line);
-          continue;
-        }
-        if (addr_valid(network, line)){
-          addrs.push(line);
-          continue;
-        }
-        return void setError('Invalid entry: '+line);
-      }
-      if (xpubs.length && addrs.length)
-        return void setError('Cannot mix XPUB and Addresses');
-      if (xpubs.length>1)
-        return void setError('Enter only one XPUB');
-      if (xpubs.length){
-        onAdd({id: Date.now().toString(), name: name.trim(),
-          network: networkKey, type: 'zpub', zpub: xpubs[0]});
-        return;
-      }
-      onAdd({id: Date.now().toString(), name: name.trim(),
-        network: networkKey, type: 'watch', addresses: addrs});
-      return;
-    }
-    // xpriv wallet
+    // xpriv wallet (from QR import)
     if (xprivKey){
       let xk = parse_xkey(xprivKey);
       if (!xk || !xk.is_priv)
@@ -827,20 +784,41 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
         network: networkKey, xpriv: xprivKey, derivPath: 'm'});
       return;
     }
-    // HD wallet
-    const cleaned = mnemonicInput.trim().toLowerCase();
-    if (!bip39.validateMnemonic(cleaned))
-      return void setError('Invalid mnemonic phrase');
-    const mnemonic = cleaned;
-    const pp = usePassphrase ? passphrase : '';
-    const dp = showAdvanced ? derivPath.trim() : null;
+    let input = mnemonicInput.trim();
+    if (!input)
+      return void setError('Enter mnemonic words, XPUB, or address');
+    // check if xpub
+    let is_xpub = false;
     try {
-      hd_wallet(mnemonic, networkKey, pp, dp);
+      let node = parse_xpub(input, network);
+      xpub_derive_addr(network, node, 0, 0);
+      is_xpub = true;
+    } catch(e){}
+    if (is_xpub){
+      onAdd({id: Date.now().toString(), name: name.trim(),
+        network: networkKey, type: 'zpub', zpub: input});
+      return;
+    }
+    // check if address(es)
+    let lines = input.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+    if (lines.length && lines.every(l=>addr_valid(network, l))){
+      onAdd({id: Date.now().toString(), name: name.trim(),
+        network: networkKey, type: 'watch', addresses: lines});
+      return;
+    }
+    // HD wallet (mnemonic)
+    let cleaned = input.toLowerCase();
+    if (!bip39.validateMnemonic(cleaned))
+      return void setError('Invalid mnemonic, XPUB, or address');
+    let pp = usePassphrase ? passphrase : '';
+    let dp = showAdvanced ? derivPath.trim() : null;
+    try {
+      hd_wallet(cleaned, networkKey, pp, dp);
     } catch(e){
       return void setError('Failed to derive wallet: '+e.message);
     }
     onAdd({id: Date.now().toString(), name: name.trim(), network: networkKey,
-      mnemonic, passphrase: pp, derivPath: dp});
+      mnemonic: cleaned, passphrase: pp, derivPath: dp});
   };
   return (
     <div style={{maxWidth: 480}}>
@@ -853,7 +831,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
               style={{width: 16, height: 16}} />
             Import from QR Code
           </button>
-          {!watchOnly && !showAdvanced && !xprivKey &&
+          {!showAdvanced && !xprivKey &&
             <button onClick={()=>setShowAdvanced(true)}>Advanced</button>
           }
         </div>
@@ -884,22 +862,12 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
           ))}
         </div>
       </div>
-      <div style={{marginTop: 12}}>
-        <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-          <input
-            type="checkbox"
-            checked={watchOnly}
-            onChange={e=>setWatchOnly(e.target.checked)}
-          />
-          Watch-only wallet
-        </label>
-      </div>
-      {!watchOnly && !xprivKey && <>
+      {!xprivKey && <>
         <div style={{marginTop: 12}}>
           <label>Wallet secret 12 words - WRITE THIS DOWN ON PAPER:</label>
           <textarea
             rows={4}
-            placeholder={'Enter the 12 or 24 secret words of your wallet'}
+            placeholder={'Enter the 12 or 24 secret words of your wallet\nor enter '+pub_prefix+'... or '+addr_prefix+' for watch-only'}
             value={mnemonicInput}
             onChange={e=>setMnemonicInput(e.target.value)}
             style={{display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box'}}
@@ -936,20 +904,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
           </div>
         )}
       </>}
-      {watchOnly && (
-        <div style={{marginTop: 12}}>
-          <label>XPUB or Address:</label>
-          <textarea
-            rows={4}
-            value={watchInput}
-            onChange={e=>setWatchInput(e.target.value)}
-            placeholder={pub_prefix+'... or '+bech+'1...'}
-            style={{display: 'block', width: '100%', marginTop: 6, fontFamily: 'monospace',
-              fontSize: 13, boxSizing: 'border-box'}}
-          />
-        </div>
-      )}
-      {xprivKey && !watchOnly && (
+      {xprivKey && (
         <div style={{marginTop: 12}}>
           <label>Extended private key (imported from QR):</label>
           <div style={{marginTop: 6, fontFamily: 'monospace', fontSize: 12,
