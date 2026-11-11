@@ -1270,6 +1270,7 @@ function Mine_screen({wallet, start}){
   const [mode, setMode] = useState(info.mode || 'instant');
   const cur_mode = on ? info.mode : mode;
   const stats = (info.stats_by_mode||{})[cur_mode] || {};
+  const hps = stats.hps || (on ? 0 : 100000);
   const elapsed = info.elapsed ||= 0;
   const last_err = info.err ||= null;
   const status = info.status ||= null;
@@ -1322,7 +1323,7 @@ function Mine_screen({wallet, start}){
           </tr>
           <tr>
             <td style={{color: '#666', paddingRight: 16}}>Speed Hash/second</td>
-            <td><strong>{(stats.hps||0).toLocaleString()+' H/s'}</strong></td>
+            <td><strong>{hps.toLocaleString()+' H/s'}</strong></td>
           </tr>
           <tr>
             <td style={{color: '#666', paddingRight: 16}}>Mined hashes</td>
@@ -1368,6 +1369,7 @@ function Mine_pool_screen({wallet}){
   const info = pool_state[id] ||= {};
   const on = info.on ||= false;
   const stats = info.stats ||= {};
+  const hps = stats.hps || (on ? 0 : 100000);
   const elapsed = info.elapsed ||= 0;
   const last_err = info.err ||= null;
   const status = info.status ||= null;
@@ -1427,7 +1429,7 @@ function Mine_pool_screen({wallet}){
           </tr>
           <tr>
             <td style={{color: '#666', paddingRight: 16}}>Speed Hash/second</td>
-            <td><strong>{(stats.hps||0).toLocaleString()+' H/s'}</strong></td>
+            <td><strong>{hps.toLocaleString()+' H/s'}</strong></td>
           </tr>
           <tr>
             <td style={{color: '#666', paddingRight: 16}}>Mined hashes</td>

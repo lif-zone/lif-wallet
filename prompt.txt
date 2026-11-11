@@ -1783,3 +1783,6 @@ Client (electrum.js): Added on/off/_emit event listener support to electrum_rpc 
 Client (wallet_db.js): Added wallet_subscribe(wallet, on_update) that subscribes to all wallet scripthashes via el.sh_subscribe(), listens for header/scripthash events, and triggers _wallet_fetch + on_update callback on changes. Includes debounce to prevent concurrent fetches.
 Client (wallet.jsx): After initial wallet_fetch, calls wallet_subscribe with wallet_apply callback. Cleanup on unmount/re-render via wallet._unsub.
 ---
+USER: Mine_screen should show default 100,000 H/s, not 0, before mining starts.
+CLAUDE: Added `hps` variable in both Mine_screen and Mine_pool_screen: `stats.hps || (on ? 0 : 100000)`. Shows 100,000 H/s before starting, real value after. Updated both H/s display cells to use `hps` instead of `(stats.hps||0)`.
+---
