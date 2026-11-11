@@ -1352,13 +1352,6 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
               <td style={{padding: '5px 0'}}>{hasPassphrase ? 'Yes' : 'No'}</td>
             </tr>
           </>}
-          {wallet.ls.type=='zpub' && (
-            <tr>
-              <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>XPUB</td>
-              <td style={{padding: '5px 0', fontFamily: 'monospace', fontSize: 11,
-                wordBreak: 'break-all'}}>{wallet.ls.zpub}</td>
-            </tr>
-          )}
           {wallet.ls.type=='watch' && (
             <tr>
               <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Addresses</td>
