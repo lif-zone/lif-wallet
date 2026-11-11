@@ -1289,24 +1289,10 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage}){
     <div style={{marginTop: 16, maxWidth: 480}}>
       <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
         <h3 style={{margin: 0}}>Wallet Settings</h3>
-        <div style={{display: 'flex', gap: 8}}>
-          <button
-            onClick={()=>setShowDelete(true)}
-            style={{color: '#c00', border: '1px solid #c00', background: 'transparent'}}
-          >Delete Wallet</button>
-          <button onClick={toggle_advanced}>
-            Advanced: {advanced ? 'On' : 'Off'}
-          </button>
-          {!is_watch && wallet.ls.mnemonic &&
-            <button onClick={()=>setShowBackup(true)}>Export/Backup Wallet</button>
-          }
-          {xpub_str &&
-            <button onClick={()=>setShowXpub(!showXpub)}>Export read-only wallet</button>
-          }
-          {!is_watch &&
-            <button onClick={onSignMessage}>Sign Message</button>
-          }
-        </div>
+        <button
+          onClick={()=>setShowDelete(true)}
+          style={{color: '#c00', border: '1px solid #c00', background: 'transparent'}}
+        >Delete Wallet</button>
       </div>
       {showDelete && (
         <Wallet_delete onDelete={onDelete} onCancel={()=>setShowDelete(false)} />
@@ -1364,6 +1350,20 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage}){
           )}
         </tbody>
       </table>
+      <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16}}>
+        <button onClick={toggle_advanced}>
+          Advanced: {advanced ? 'On' : 'Off'}
+        </button>
+        {!is_watch && wallet.ls.mnemonic &&
+          <button onClick={()=>setShowBackup(true)}>Export/Backup Wallet</button>
+        }
+        {xpub_str &&
+          <button onClick={()=>setShowXpub(!showXpub)}>Export read-only wallet</button>
+        }
+        {!is_watch &&
+          <button onClick={onSignMessage}>Sign Message</button>
+        }
+      </div>
     </div>
   );
 }
