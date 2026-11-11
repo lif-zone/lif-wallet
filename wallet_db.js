@@ -10,7 +10,7 @@ import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, g_settings,
   netconf_def, LIF_SERVER_DEF, settings_load, settings_save, settings_get,
   settings_cs_load, settings_cs_fetch, lif_server_get, lif_server_set,
   addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, hd_xpub, addr_valid,
-  parse_xpub, parse_xkey, xpub_derive_addr,
+  parse_xpub, parse_xkey, xpub_derive_addr, sign_message, verify_message,
 } from './settings.js';
 import {db_init, db_get, db_put, cache_clear, db_clear_all, cache_ver,
   tx_get, tx_put} from './db_util.js';
@@ -28,7 +28,8 @@ export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   parse_xkey,
   _el, el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
   wallet_bal, tx_send, kv_tx_add, kv_tx_send, kv_tx_edit,
-  LIF_DOMAINS, kv_is_dns, db_clear_all, parse_xpub, xpub_derive_addr};
+  LIF_DOMAINS, kv_is_dns, db_clear_all, parse_xpub, xpub_derive_addr,
+  sign_message, verify_message};
 
 
 lifnet.set_opt({client_name: 'wallet'});

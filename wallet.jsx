@@ -17,6 +17,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   wallet_cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
   buf_to_hex, db_clear_all, parse_xpub, parse_xkey, xpub_derive_addr,
+  sign_message, verify_message,
 } from './wallet_db.js';
 import {mine_stats_calc, mine_stats_calc_default} from './mine.js';
 import {mine_solo, mine_instant, mine_instant_pool, mine_slave_set} from './mine_pool.js';
@@ -358,6 +359,7 @@ function BrightWallet(){
     else if (screen=='tx_info' || screen=='kv_info')
       setScreen('wallet_info');
     else if (screen=='wallet_send' || screen=='wallet_receive' ||
+      screen=='wallet_sign_message' ||
       screen=='wallet_kv_add' || screen=='wallet_kv_add_raw' || screen=='wallet_settings' ||
       screen=='wallet_mine' || screen=='wallet_mine_pool' ||
       screen=='wallet_get_domain')
@@ -423,6 +425,7 @@ function BrightWallet(){
           onSelectKey={(data)=>{ setSelectedKeyData(data); setScreen('kv_info'); }}
           onSend={()=>setScreen('wallet_send')}
           onReceive={()=>setScreen('wallet_receive')}
+          onSignMessage={()=>setScreen('wallet_sign_message')}
           onKvAdd={()=>setScreen('wallet_kv_add')}
           onKvAddRaw={()=>setScreen('wallet_kv_add_raw')}
           onSettings={()=>setScreen('wallet_settings')}
@@ -444,6 +447,9 @@ function BrightWallet(){
           symbol={wallet.netconf.symbol}
           netconf={wallet.netconf}
         />
+      )}
+      {screen=='wallet_sign_message' && wallet && (
+        <Sign_message_screen wallet={wallet} />
       )}
       {screen=='wallet_get_domain' && wallet && (
         <Get_domain_screen
@@ -997,8 +1003,8 @@ function transactions_sorted(transactions){
 
 // Wallet Detail Screen
 function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
-  onSelectKey, onSend, onReceive, onKvAdd, onKvAddRaw, onSettings, onMine,
-  onMinePool, refreshTick, setWalletLoading})
+  onSelectKey, onSend, onReceive, onSignMessage, onKvAdd, onKvAddRaw,
+  onSettings, onMine, onMinePool, refreshTick, setWalletLoading})
 {
   const modal = useModal();
   const {netconf} = wallet;
@@ -1076,6 +1082,7 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
       <div style={{display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center'}}>
         <button onClick={onReceive}>Receive</button>
         {!is_watch && <button onClick={onSend}>Send</button>}
+        {!is_watch && <button onClick={onSignMessage}>Sign Message</button>}
         {!is_watch && netconf.lif_kv && <button onClick={onKvAdd}>Get Domain Name</button>}
         {!is_watch && netconf.lif_kv && settings.ls.advanced && <button onClick={onKvAddRaw}>Get Key/Val</button>}
         {!is_watch && netconf.lif_kv && <button onClick={onMine}>Mine</button>}
@@ -1408,6 +1415,136 @@ function Receive_screen({address, symbol, netconf}){
         <div style={{marginTop: 8, color: 'green', fontSize: 13}}>Copied to clipboard</div>
       )}
       {address && <canvas ref={canvasRef} style={{display: 'block', marginTop: 12}} />}
+    </div>
+  );
+}
+
+// Sign/Verify Message
+function Sign_message_screen({wallet}){
+  const [mode, setMode] = useState('sign');
+  const [message, setMessage] = useState('');
+  const [addrIdx, setAddrIdx] = useState(0);
+  const [signature, setSig] = useState('');
+  const [verifyAddr, setVerifyAddr] = useState('');
+  const [verifyMsg, setVerifyMsg] = useState('');
+  const [verifySig, setVerifySig] = useState('');
+  const [result, setResult] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const {netconf, network} = wallet;
+  const addrs = wallet.c.addrs||[];
+  const ext_addrs = addrs.filter(a=>a.chain==0);
+  const handleSign = ()=>{
+    setResult(null);
+    if (!message.trim())
+      return void setResult({ok: false, msg: 'Enter a message'});
+    let addr_info = ext_addrs[addrIdx];
+    if (!addr_info?.keyPair)
+      return void setResult({ok: false, msg: 'No signing key for this address'});
+    try {
+      let sig = sign_message(message, addr_info.keyPair, network);
+      setSig(sig);
+      setResult({ok: true, msg: 'Message signed'});
+    } catch(e){
+      setResult({ok: false, msg: 'Signing failed: '+e.message});
+    }
+  };
+  const handleVerify = ()=>{
+    setResult(null);
+    if (!verifyMsg.trim()||!verifyAddr.trim()||!verifySig.trim())
+      return void setResult({ok: false, msg: 'Fill in all fields'});
+    let ok = verify_message(verifyMsg, verifyAddr.trim(), verifySig.trim(),
+      network);
+    setResult(ok
+      ? {ok: true, msg: 'Signature is valid'}
+      : {ok: false, msg: 'Signature is invalid'});
+  };
+  const handleCopy = async(text)=>{
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    await esleep(2000);
+    setCopied(false);
+  };
+  const mono = {fontFamily: 'monospace', fontSize: 13};
+  return (
+    <div style={{marginTop: 16, maxWidth: 480}}>
+      <h3 style={{margin: 0}}>Sign / Verify Message</h3>
+      <div style={{display: 'flex', gap: 8, marginTop: 12}}>
+        <button onClick={()=>{ setMode('sign'); setResult(null); }}
+          style={{fontWeight: mode=='sign' ? 'bold' : 'normal'}}>
+          Sign
+        </button>
+        <button onClick={()=>{ setMode('verify'); setResult(null); }}
+          style={{fontWeight: mode=='verify' ? 'bold' : 'normal'}}>
+          Verify
+        </button>
+      </div>
+      {mode=='sign' && (
+        <div style={{marginTop: 12}}>
+          <label>Address:</label>
+          <select value={addrIdx}
+            onChange={e=>setAddrIdx(+e.target.value)}
+            style={{display: 'block', width: '100%', marginTop: 4,
+              boxSizing: 'border-box', ...mono}}>
+            {ext_addrs.map((a, i)=>
+              <option key={i} value={i}>{a.address}</option>
+            )}
+          </select>
+          <label style={{display: 'block', marginTop: 12}}>Message:</label>
+          <textarea rows={4} value={message}
+            onChange={e=>setMessage(e.target.value)}
+            placeholder="Enter message to sign"
+            style={{display: 'block', width: '100%', marginTop: 4,
+              boxSizing: 'border-box'}}
+          />
+          <button onClick={handleSign} style={{marginTop: 8}}>Sign</button>
+          {signature && (
+            <div style={{marginTop: 12}}>
+              <label>Signature:</label>
+              <div onClick={()=>handleCopy(signature)}
+                style={{marginTop: 4, padding: 8, background: '#f4f4f4',
+                  border: '1px solid #ccc', borderRadius: 4, wordBreak: 'break-all',
+                  cursor: 'pointer', ...mono}}>
+                {signature}
+              </div>
+              {copied &&
+                <div style={{marginTop: 4, color: 'green', fontSize: 13}}>
+                  Copied to clipboard
+                </div>
+              }
+            </div>
+          )}
+        </div>
+      )}
+      {mode=='verify' && (
+        <div style={{marginTop: 12}}>
+          <label>Address:</label>
+          <input value={verifyAddr}
+            onChange={e=>setVerifyAddr(e.target.value)}
+            placeholder={netconf.network.bech32+'1...'}
+            style={{display: 'block', width: '100%', marginTop: 4,
+              boxSizing: 'border-box', ...mono}}
+          />
+          <label style={{display: 'block', marginTop: 12}}>Message:</label>
+          <textarea rows={4} value={verifyMsg}
+            onChange={e=>setVerifyMsg(e.target.value)}
+            placeholder="Enter the original message"
+            style={{display: 'block', width: '100%', marginTop: 4,
+              boxSizing: 'border-box'}}
+          />
+          <label style={{display: 'block', marginTop: 12}}>Signature:</label>
+          <textarea rows={3} value={verifySig}
+            onChange={e=>setVerifySig(e.target.value)}
+            placeholder="Paste base64 signature"
+            style={{display: 'block', width: '100%', marginTop: 4,
+              boxSizing: 'border-box', ...mono}}
+          />
+          <button onClick={handleVerify} style={{marginTop: 8}}>Verify</button>
+        </div>
+      )}
+      {result && (
+        <p style={{marginTop: 8,
+          color: result.ok ? 'green' : 'red'}}>{result.msg}</p>
+      )}
     </div>
   );
 }

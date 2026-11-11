@@ -304,3 +304,61 @@ export function addr_valid(network, addr){
     return false;
   }
 }
+
+function varint_buf(n){
+  if (n<0xfd)
+    return Buffer.from([n]);
+  if (n<=0xffff){
+    let b = Buffer.alloc(3);
+    b[0] = 0xfd;
+    b.writeUInt16LE(n, 1);
+    return b;
+  }
+  let b = Buffer.alloc(5);
+  b[0] = 0xfe;
+  b.writeUInt32LE(n, 1);
+  return b;
+}
+
+function msg_hash(message, network){
+  let prefix = network.messagePrefix||'\x18Bitcoin Signed Message:\n';
+  let prefix_buf = Buffer.from(prefix, 'utf8');
+  let msg_buf = Buffer.from(message, 'utf8');
+  let buf = Buffer.concat([prefix_buf, varint_buf(msg_buf.length), msg_buf]);
+  return sha256(sha256(buf));
+}
+
+export function sign_message(message, keyPair, network){
+  let hash = msg_hash(message, network);
+  let {signature, recoveryId} = ecc.signRecoverable(hash, keyPair.privateKey);
+  let compressed = keyPair.compressed!==false;
+  let flag = 27+recoveryId+(compressed ? 4 : 0);
+  let buf = Buffer.alloc(65);
+  buf[0] = flag;
+  Buffer.from(signature).copy(buf, 1);
+  return buf.toString('base64');
+}
+
+export function verify_message(message, address, signature_b64, network){
+  let sig_buf = Buffer.from(signature_b64, 'base64');
+  if (sig_buf.length!=65)
+    return false;
+  let flag = sig_buf[0]-27;
+  if (flag<0||flag>7)
+    return false;
+  let compressed = !!(flag&4);
+  let recoveryId = flag&3;
+  let hash = msg_hash(message, network);
+  let signature = sig_buf.slice(1);
+  let pubkey;
+  try {
+    pubkey = ecc.recover(hash, signature, recoveryId, compressed);
+  } catch(e){
+    return false;
+  }
+  if (!pubkey)
+    return false;
+  let {address: derived} = bitcoin.payments.p2wpkh({
+    pubkey: Buffer.from(pubkey), network});
+  return derived==address;
+}
