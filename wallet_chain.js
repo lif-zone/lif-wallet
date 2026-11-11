@@ -859,6 +859,7 @@ export async function wc_get_balance(netconf, addrs){
   let spent = new Set();
   let confirmed = 0;
   let unconfirmed = 0;
+  let full_spv = !!g_settings.ls?.full_spv;
   // Collect all TXs from scripthash histories
   let tx_entries = [];
   for (let a of addrs){
@@ -868,8 +869,12 @@ export async function wc_get_balance(netconf, addrs){
       continue;
     for (let h of hist){
       let entry = await tx_get(h.tx_hash);
-      if (entry)
-        tx_entries.push({entry, height: h.height});
+      if (!entry)
+        continue;
+      // Full SPV: skip unverified confirmed TXs
+      if (full_spv && h.height>0 && !entry.verified)
+        continue;
+      tx_entries.push({entry, height: h.height});
     }
   }
   // Mark spent outputs
@@ -899,6 +904,7 @@ export async function wc_get_balance(netconf, addrs){
 export async function wc_listunspent(netconf, addrs){
   let network = netconf.network;
   let addr_set = new Set(addrs.map(a=>a.address));
+  let full_spv = !!g_settings.ls?.full_spv;
   let spent = new Set();
   let tx_entries = [];
   for (let a of addrs){
@@ -908,8 +914,11 @@ export async function wc_listunspent(netconf, addrs){
       continue;
     for (let h of hist){
       let entry = await tx_get(h.tx_hash);
-      if (entry)
-        tx_entries.push({entry, height: h.height});
+      if (!entry)
+        continue;
+      if (full_spv && h.height>0 && !entry.verified)
+        continue;
+      tx_entries.push({entry, height: h.height});
     }
   }
   for (let {entry} of tx_entries){

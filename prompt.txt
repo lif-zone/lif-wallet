@@ -1829,3 +1829,7 @@ CLAUDE: Updated wallet_chain.js:
 - `wc_sync_headers` full SPV mode: ranges now extend from checkpoint below TX to checkpoint above TX (not just TX+20), ensuring complete header coverage between two checkpoints
 - `wc_store_tx`: cached confirmed TXs with `verified: false` are re-verified against headers when available. Returns error if merkle root doesn't match header.
 - Moved difficulty chain computation after range calculation so it covers the full upper-checkpoint range.
+
+---
+USER: In Full SPV mode, don't count unverified confirmed TXs in balance/UTXOs. Still store them, but skip them until verified.
+CLAUDE: Updated wc_get_balance and wc_listunspent in wallet_chain.js: in Full SPV mode, skip confirmed TXs with verified==false from both balance calculation and UTXO listing. Mempool TXs (height<=0) still shown as unconfirmed. This ensures only merkle-proof-verified TXs count toward balance in Full SPV mode.
