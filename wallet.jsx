@@ -734,7 +734,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
       let lines = watchInput.trim().split(/[\n,]+/).map(s=>s.trim())
         .filter(Boolean);
       if (!lines.length)
-        return void setError('Enter an extended public key or address');
+        return void setError('Enter an XPUB or Address');
       let xpubs = [];
       let addrs = [];
       for (let line of lines){
@@ -755,9 +755,9 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
         return void setError('Invalid entry: '+line);
       }
       if (xpubs.length && addrs.length)
-        return void setError('Cannot mix extended public keys and addresses');
+        return void setError('Cannot mix XPUB and Addresses');
       if (xpubs.length>1)
-        return void setError('Enter only one extended public key');
+        return void setError('Enter only one XPUB');
       if (xpubs.length){
         onAdd({id: Date.now().toString(), name: name.trim(),
           network: networkKey, type: 'zpub', zpub: xpubs[0]});
@@ -871,7 +871,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
       {watchOnly && (
         <div style={{marginTop: 12}}>
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-            <label>Extended public key ({pub_prefix}) or Address ({addr_prefix}):</label>
+            <label>XPUB or Address:</label>
             <button onClick={startScan} title="Scan QR code"
               style={{padding: '2px 4px', lineHeight: 0}}>
               <img src={import.meta.resolve('./qrcode.svg')} style={{width: 20, height: 20}} />
@@ -1249,8 +1249,8 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
           <tr>
             <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Type</td>
             <td style={{padding: '5px 0'}}>{
-              wallet.ls.type=='watch' ? 'Watch-only (addresses)'
-              : wallet.ls.type=='zpub' ? 'Watch-only (extended public key)'
+              wallet.ls.type=='watch' ? 'Watch-only (Addresses)'
+              : wallet.ls.type=='zpub' ? 'Watch-only (XPUB)'
               : 'HD Wallet'
             }</td>
           </tr>
@@ -1270,7 +1270,7 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
           </>}
           {wallet.ls.type=='zpub' && (
             <tr>
-              <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Extended key</td>
+              <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>XPUB</td>
               <td style={{padding: '5px 0', fontFamily: 'monospace', fontSize: 11,
                 wordBreak: 'break-all'}}>{wallet.ls.zpub}</td>
             </tr>

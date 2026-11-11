@@ -277,7 +277,7 @@ export function parse_xpub(xpub_str, network){
     try { return bip32.fromBase58(xpub_str, v); }
     catch(e){}
   }
-  throw new Error('Invalid extended public key');
+  throw new Error('Invalid XPUB');
 }
 
 export function xpub_derive_addr(network, node, chain, index){
