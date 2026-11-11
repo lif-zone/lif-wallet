@@ -1868,3 +1868,7 @@ wallet.jsx:
 - Wallet_card: shows "watch-only" label, hides Mine buttons for watch-only
 - Wallet_screen: hides Send, Mine, KV, Mining pool buttons for watch-only. Mnemonic validation skipped for watch-only.
 - Wallet_settings_subscreen: shows wallet type, hides Backup/Derivation path/Passphrase for watch-only, shows zpub or addresses instead
+
+---
+USER: Change LIF bip32 version bytes so extended keys start with Lpub/Lprv instead of Ltuu.
+CLAUDE: Updated LIF mainnet and testnet bip32 version bytes in settings.js from {public: 0x019da4e0, private: 0x019da380} to {public: 0x019c3550, private: 0x019c3115}. This produces Lpub/Lprv prefixes for LIF extended public/private keys. Also added LIF versions to parse_xpub fallback list.
