@@ -254,6 +254,11 @@ export function hd_wallet(mnemonic, net_id, passphrase='', derivPath){
   return {address, keyPair, network, netconf, root};
 }
 
+export function hd_xpub(mnemonic, network, passphrase='', accountPath){
+  const root = hd_root(mnemonic, network, passphrase);
+  return root.derivePath(accountPath).neutered().toBase58();
+}
+
 // Parse extended public key (xpub/zpub/ypub) with flexible version handling
 export function parse_xpub(xpub_str, network){
   // Try with network's native bip32 versions

@@ -9,7 +9,7 @@ import etask from 'lif-kernel/etask';
 import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, g_settings,
   netconf_def, LIF_SERVER_DEF, settings_load, settings_save, settings_get,
   settings_cs_load, settings_cs_fetch, lif_server_get, lif_server_set,
-  addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
+  addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, hd_xpub, addr_valid,
   parse_xpub, xpub_derive_addr,
 } from './settings.js';
 import {db_init, db_get, db_put, cache_clear, db_clear_all, cache_ver,
@@ -24,7 +24,7 @@ import {el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
 
 export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   settings_cs_fetch, lif_server_get, lif_server_set,
-  addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
+  addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, hd_xpub, addr_valid,
   _el, el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
   wallet_bal, tx_send, kv_tx_add, kv_tx_send, kv_tx_edit,
   LIF_DOMAINS, kv_is_dns, db_clear_all, parse_xpub, xpub_derive_addr};

@@ -12,7 +12,7 @@ const {split_ws} = str;
 import {settings_get, settings_save, settings_cs_fetch,
   wallet_db_init, wallet_fetch, wallet_subscribe,
   wallet_add, wallet_del, wallet_update, wallets_get, wallet_get,
-  hd_wallet, hd_path_def, hd_root, hd_addr, addr_valid,
+  hd_wallet, hd_path_def, hd_root, hd_xpub, hd_addr, addr_valid,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
   wallet_cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
@@ -667,6 +667,9 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
     ()=>hd_path_def(netconfs['lif']));
   const [mnemonicInput, setMnemonicInput] = useState(bip39.generateMnemonic());
   const [watchInput, setWatchInput] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
   const defaultName = (()=>{
     let max = 0;
     for (const w of OV(wallets)){
@@ -680,10 +683,49 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
   const [usePassphrase, setUsePassphrase] = useState(false);
   const [passphrase, setPassphrase] = useState('');
   const [error, setError] = useState('');
+  const modal = useModal();
+  const stopScan = ()=>{
+    streamRef.current?.getTracks().forEach(t=>t.stop());
+    streamRef.current = null;
+    setScanning(false);
+  };
+  const startScan = async()=>{
+    if (!window.BarcodeDetector)
+      return await modal.alert('QR scanning not supported in this browser');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(
+        {video: {facingMode: 'environment'}});
+      streamRef.current = stream;
+      setScanning(true);
+    } catch(e){
+      await modal.alert('Camera not available: '+e.message);
+    }
+  };
+  useEffect(()=>{
+    if (!scanning || !videoRef.current)
+      return;
+    videoRef.current.srcObject = streamRef.current;
+    const detector = new window.BarcodeDetector({formats: ['qr_code']});
+    let rafId;
+    const scan = async()=>{
+      try {
+        const codes = await detector.detect(videoRef.current);
+        if (codes.length){
+          let val = codes[0].rawValue.trim();
+          setWatchInput(prev=>prev ? prev+'\n'+val : val);
+          stopScan();
+          return;
+        }
+      } catch(e){}
+      rafId = requestAnimationFrame(scan);
+    };
+    videoRef.current.onplay = ()=>{ rafId = requestAnimationFrame(scan); };
+    return ()=>{ cancelAnimationFrame(rafId); };
+  }, [scanning]);
   const netconf = netconfs[networkKey];
   const bech = netconf.network.bech32 || 'bc';
   const is_lif = networkKey=='lif' || networkKey=='liftest';
-  const pub_prefix = is_lif ? 'Lpub' : 'xpub/ypub/zpub';
+  const pub_prefix = is_lif ? 'Lpub' : 'zpub';
   const addr_prefix = bech+'1...';
   const handleAdd = ()=>{
     setError('');
@@ -828,7 +870,13 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
       </>}
       {watchOnly && (
         <div style={{marginTop: 12}}>
-          <label>Extended public key ({pub_prefix}) or Address ({addr_prefix}):</label>
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+            <label>Extended public key ({pub_prefix}) or Address ({addr_prefix}):</label>
+            <button onClick={startScan} title="Scan QR code"
+              style={{padding: '2px 4px', lineHeight: 0}}>
+              <img src={import.meta.resolve('./qrcode.svg')} style={{width: 20, height: 20}} />
+            </button>
+          </div>
           <textarea
             rows={4}
             value={watchInput}
@@ -837,6 +885,20 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
             style={{display: 'block', width: '100%', marginTop: 6, fontFamily: 'monospace',
               fontSize: 13, boxSizing: 'border-box'}}
           />
+          {scanning && (
+            <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+              zIndex: 1000, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 16}}>
+              <video ref={videoRef} autoPlay playsInline
+                style={{width: 300, height: 300, objectFit: 'cover', borderRadius: 8,
+                  border: '2px solid white'}} />
+              <button onClick={stopScan}
+                style={{color: 'white', background: 'transparent',
+                  border: '1px solid white', padding: '6px 20px'}}>
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       )}
       {error && <p style={{color: 'red', marginTop: 8}}>{error}</p>}
@@ -1073,11 +1135,53 @@ function Wallet_delete({onDelete, onCancel}){
 }
 
 // Wallet Settings Subscreen
+function Xpub_export({xpub}){
+  const [copied, setCopied] = useState(false);
+  const canvasRef = useRef(null);
+  const handleCopy = async()=>{
+    navigator.clipboard.writeText(xpub);
+    setCopied(true);
+    await esleep(2000);
+    setCopied(false);
+  };
+  useEffect(()=>{
+    (async()=>{
+      const QRCode = (await import('qrcode')).default;
+      if (canvasRef.current && xpub)
+        QRCode.toCanvas(canvasRef.current, xpub, {width: 220, margin: 2});
+    })();
+  }, [xpub]);
+  return (
+    <div style={{marginTop: 12}}>
+      <div
+        onClick={handleCopy}
+        style={{
+          fontFamily: 'monospace',
+          background: '#f4f4f4',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          padding: 12,
+          wordBreak: 'break-all',
+          fontSize: 12,
+          cursor: 'pointer',
+        }}
+      >
+        {xpub}
+      </div>
+      {copied && (
+        <div style={{marginTop: 8, color: 'green', fontSize: 13}}>Copied to clipboard</div>
+      )}
+      {xpub && <canvas ref={canvasRef} style={{display: 'block', marginTop: 12}} />}
+    </div>
+  );
+}
+
 function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
   const {netconf} = wallet;
   const [name, setName] = useState(wallet.ls.name);
   const [showBackup, setShowBackup] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showXpub, setShowXpub] = useState(false);
   const [advanced, setAdvanced] = useState(!!settings.ls.advanced);
   const toggle_advanced = ()=>{
     settings.ls.advanced = !settings.ls.advanced;
@@ -1087,6 +1191,16 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
   const is_watch = wallet.ls.type=='watch' || wallet.ls.type=='zpub';
   const hasPassphrase = !!wallet.ls.passphrase;
   const derivPath = wallet.ls.derivPath || hd_path_def(netconf);
+  const xpub_str = useMemo(()=>{
+    if (is_watch || !wallet.ls.mnemonic)
+      return null;
+    try {
+      return hd_xpub(wallet.ls.mnemonic, netconf.network,
+        wallet.ls.passphrase||'', derivPath);
+    } catch(e){
+      return null;
+    }
+  }, [wallet.ls.mnemonic, wallet.ls.passphrase, derivPath]);
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
@@ -1102,10 +1216,16 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
           {!is_watch &&
             <button onClick={()=>setShowBackup(true)}>Backup Wallet</button>
           }
+          {xpub_str &&
+            <button onClick={()=>setShowXpub(!showXpub)}>Export read-only wallet</button>
+          }
         </div>
       </div>
       {showDelete && (
         <Wallet_delete onDelete={onDelete} onCancel={()=>setShowDelete(false)} />
+      )}
+      {showXpub && xpub_str && (
+        <Xpub_export xpub={xpub_str} />
       )}
       {showBackup && (
         <Wallet_backup

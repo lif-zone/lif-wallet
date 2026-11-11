@@ -1886,3 +1886,9 @@ CLAUDE: Extracted the CHECKPOINTS data object (LIF, tLIF, BTC, tBTC arrays of [h
 ---
 USER: In new wallet UI, change watch wallet radio (3 options) to a checkbox (default off): Watch-only wallet. When enabled, show single textarea with network-dependent label/placeholder: "Extended public key (Lpub) or Address (lif1...)" for LIF, "Extended public key (x/y/zpub) or Address (bc1...)" for BTC. Validate on submit: mixed xpub+addresses or multiple xpubs show red error.
 CLAUDE: Replaced the 3-radio Type selector (HD/zpub/watch) with a single "Watch-only wallet" checkbox styled like the Passphrase checkbox. When unchecked, shows HD wallet UI as before. When checked, shows a textarea with network-dependent label and placeholder (Lpub/lif1 for LIF, x/y/zpub/bc1 for BTC). On submit, auto-detects whether entries are xpubs or addresses. Errors: mixed xpub+addresses, multiple xpubs, or invalid entries. The internal wallet types (zpub/watch) are preserved for storage compatibility.
+---
+USER: Add QR code support for watch-only wallets: (1) QR scanner on Add Wallet watch-only textarea, (2) Export xpub as QR+text in Wallet Settings for HD wallets, (3) hd_xpub derivation function.
+CLAUDE: Added three features:
+1. QR scanner button on Add Wallet watch-only textarea — scan xpub or address QR codes, appends to textarea. Uses same camera/BarcodeDetector pattern as Addr_field.
+2. "Export read-only wallet" button in Wallet_settings_subscreen for HD wallets — toggles Xpub_export component showing the xpub as clickable text (copies to clipboard) + QR canvas, same layout as Receive_screen.
+3. New hd_xpub() in settings.js — derives account xpub string from mnemonic+network+passphrase+accountPath using root.derivePath().neutered().toBase58(). Exported through wallet_db.js.
