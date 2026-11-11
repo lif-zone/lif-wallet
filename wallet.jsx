@@ -358,8 +358,9 @@ function BrightWallet(){
       setScreen('tx_info');
     else if (screen=='tx_info' || screen=='kv_info')
       setScreen('wallet_info');
+    else if (screen=='wallet_sign_message')
+      setScreen('wallet_settings');
     else if (screen=='wallet_send' || screen=='wallet_receive' ||
-      screen=='wallet_sign_message' ||
       screen=='wallet_kv_add' || screen=='wallet_kv_add_raw' || screen=='wallet_settings' ||
       screen=='wallet_mine' || screen=='wallet_mine_pool' ||
       screen=='wallet_get_domain')
@@ -425,7 +426,6 @@ function BrightWallet(){
           onSelectKey={(data)=>{ setSelectedKeyData(data); setScreen('kv_info'); }}
           onSend={()=>setScreen('wallet_send')}
           onReceive={()=>setScreen('wallet_receive')}
-          onSignMessage={()=>setScreen('wallet_sign_message')}
           onKvAdd={()=>setScreen('wallet_kv_add')}
           onKvAddRaw={()=>setScreen('wallet_kv_add_raw')}
           onSettings={()=>setScreen('wallet_settings')}
@@ -476,6 +476,7 @@ function BrightWallet(){
           wallet={wallet}
           onUpdate={(changes)=>updateWallet(wallet.ls.id, changes)}
           onDelete={()=>deleteWallet(wallet.ls.id)}
+          onSignMessage={()=>setScreen('wallet_sign_message')}
         />
       )}
       {screen=='wallet_mine' && wallet && (
@@ -1003,7 +1004,7 @@ function transactions_sorted(transactions){
 
 // Wallet Detail Screen
 function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
-  onSelectKey, onSend, onReceive, onSignMessage, onKvAdd, onKvAddRaw,
+  onSelectKey, onSend, onReceive, onKvAdd, onKvAddRaw,
   onSettings, onMine, onMinePool, refreshTick, setWalletLoading})
 {
   const modal = useModal();
@@ -1082,7 +1083,6 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
       <div style={{display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center'}}>
         <button onClick={onReceive}>Receive</button>
         {!is_watch && <button onClick={onSend}>Send</button>}
-        {!is_watch && <button onClick={onSignMessage}>Sign Message</button>}
         {!is_watch && netconf.lif_kv && <button onClick={onKvAdd}>Get Domain Name</button>}
         {!is_watch && netconf.lif_kv && settings.ls.advanced && <button onClick={onKvAddRaw}>Get Key/Val</button>}
         {!is_watch && netconf.lif_kv && <button onClick={onMine}>Mine</button>}
@@ -1247,7 +1247,7 @@ function Xpub_export({xpub}){
   );
 }
 
-function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
+function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage}){
   const {netconf} = wallet;
   const [name, setName] = useState(wallet.ls.name);
   const [showBackup, setShowBackup] = useState(false);
@@ -1302,6 +1302,9 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
           }
           {xpub_str &&
             <button onClick={()=>setShowXpub(!showXpub)}>Export read-only wallet</button>
+          }
+          {!is_watch &&
+            <button onClick={onSignMessage}>Sign Message</button>
           }
         </div>
       </div>
