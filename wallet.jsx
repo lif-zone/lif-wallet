@@ -659,15 +659,14 @@ function Wallet_card({wallet, onClick, onMine, onMinePool}){
 
 // Add Wallet Screen
 function Wallet_add_screen({wallets, onAdd, onCancel}){
-  const [walletType, setWalletType] = useState('hd');
+  const [watchOnly, setWatchOnly] = useState(false);
   const [networkKey, setNetworkKey] = useState('lif');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const netconfs = settings.netconf;
   const [derivPath, setDerivPath] = useState(
     ()=>hd_path_def(netconfs['lif']));
   const [mnemonicInput, setMnemonicInput] = useState(bip39.generateMnemonic());
-  const [zpubInput, setZpubInput] = useState('');
-  const [addrInput, setAddrInput] = useState('');
+  const [watchInput, setWatchInput] = useState('');
   const defaultName = (()=>{
     let max = 0;
     for (const w of OV(wallets)){
@@ -681,34 +680,49 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
   const [usePassphrase, setUsePassphrase] = useState(false);
   const [passphrase, setPassphrase] = useState('');
   const [error, setError] = useState('');
+  const netconf = netconfs[networkKey];
+  const bech = netconf.network.bech32 || 'bc';
+  const is_lif = networkKey=='lif' || networkKey=='liftest';
+  const pub_prefix = is_lif ? 'Lpub' : 'xpub/ypub/zpub';
+  const addr_prefix = bech+'1...';
   const handleAdd = ()=>{
     setError('');
-    const network = netconfs[networkKey].network;
-    if (walletType=='zpub'){
-      let zpub = zpubInput.trim();
-      if (!zpub)
-        return void setError('Enter an extended public key');
-      try {
-        let node = parse_xpub(zpub, network);
-        xpub_derive_addr(network, node, 0, 0);
-      } catch(e){
-        return void setError('Invalid extended public key: '+e.message);
-      }
-      onAdd({id: Date.now().toString(), name: name.trim(),
-        network: networkKey, type: 'zpub', zpub});
-      return;
-    }
-    if (walletType=='watch'){
-      let lines = addrInput.trim().split(/[\n,]+/).map(s=>s.trim())
+    const network = netconf.network;
+    if (watchOnly){
+      let lines = watchInput.trim().split(/[\n,]+/).map(s=>s.trim())
         .filter(Boolean);
       if (!lines.length)
-        return void setError('Enter at least one address');
-      for (let addr of lines){
-        if (!addr_valid(network, addr))
-          return void setError('Invalid address: '+addr);
+        return void setError('Enter an extended public key or address');
+      let xpubs = [];
+      let addrs = [];
+      for (let line of lines){
+        let is_xpub = false;
+        try {
+          let node = parse_xpub(line, network);
+          xpub_derive_addr(network, node, 0, 0);
+          is_xpub = true;
+        } catch(e){}
+        if (is_xpub){
+          xpubs.push(line);
+          continue;
+        }
+        if (addr_valid(network, line)){
+          addrs.push(line);
+          continue;
+        }
+        return void setError('Invalid entry: '+line);
+      }
+      if (xpubs.length && addrs.length)
+        return void setError('Cannot mix extended public keys and addresses');
+      if (xpubs.length>1)
+        return void setError('Enter only one extended public key');
+      if (xpubs.length){
+        onAdd({id: Date.now().toString(), name: name.trim(),
+          network: networkKey, type: 'zpub', zpub: xpubs[0]});
+        return;
       }
       onAdd({id: Date.now().toString(), name: name.trim(),
-        network: networkKey, type: 'watch', addresses: lines});
+        network: networkKey, type: 'watch', addresses: addrs});
       return;
     }
     // HD wallet
@@ -730,7 +744,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
     <div style={{maxWidth: 480}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <h2 style={{margin: 0}}>Add Wallet</h2>
-        {walletType=='hd' && !showAdvanced &&
+        {!watchOnly && !showAdvanced &&
           <button onClick={()=>setShowAdvanced(true)}>Advanced</button>
         }
       </div>
@@ -742,26 +756,6 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
           placeholder="My Wallet"
           style={{display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box'}}
         />
-      </div>
-      <div style={{marginTop: 12}}>
-        <label>Type:</label>
-        <div style={{marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4}}>
-          <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-            <input type="radio" name="wallet_type" checked={walletType=='hd'}
-              onChange={()=>setWalletType('hd')} />
-            HD Wallet (12/24 words)
-          </label>
-          <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-            <input type="radio" name="wallet_type" checked={walletType=='zpub'}
-              onChange={()=>setWalletType('zpub')} />
-            Watch-only (extended public key)
-          </label>
-          <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-            <input type="radio" name="wallet_type" checked={walletType=='watch'}
-              onChange={()=>setWalletType('watch')} />
-            Watch-only (addresses)
-          </label>
-        </div>
       </div>
       <div style={{marginTop: 12}}>
         <label>Coin:</label>
@@ -780,7 +774,17 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
           ))}
         </div>
       </div>
-      {walletType=='hd' && <>
+      <div style={{marginTop: 12}}>
+        <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+          <input
+            type="checkbox"
+            checked={watchOnly}
+            onChange={e=>setWatchOnly(e.target.checked)}
+          />
+          Watch-only wallet
+        </label>
+      </div>
+      {!watchOnly && <>
         <div style={{marginTop: 12}}>
           <label>Wallet secret 12 words - WRITE THIS DOWN ON PAPER:</label>
           <textarea
@@ -822,26 +826,14 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
           </div>
         )}
       </>}
-      {walletType=='zpub' && (
+      {watchOnly && (
         <div style={{marginTop: 12}}>
-          <label>Extended public key (zpub, xpub, vpub, tpub):</label>
-          <input
-            value={zpubInput}
-            onChange={e=>setZpubInput(e.target.value)}
-            placeholder="zpub6..."
-            style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
-              fontSize: 13, boxSizing: 'border-box'}}
-          />
-        </div>
-      )}
-      {walletType=='watch' && (
-        <div style={{marginTop: 12}}>
-          <label>Addresses (one per line):</label>
+          <label>Extended public key ({pub_prefix}) or Address ({addr_prefix}):</label>
           <textarea
             rows={4}
-            value={addrInput}
-            onChange={e=>setAddrInput(e.target.value)}
-            placeholder={'bc1q...\nlif1...'}
+            value={watchInput}
+            onChange={e=>setWatchInput(e.target.value)}
+            placeholder={pub_prefix+'... or '+bech+'1...'}
             style={{display: 'block', width: '100%', marginTop: 6, fontFamily: 'monospace',
               fontSize: 13, boxSizing: 'border-box'}}
           />
