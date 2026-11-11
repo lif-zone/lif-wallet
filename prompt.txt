@@ -1777,3 +1777,9 @@ USER: USD display always shows 2 decimal places, so small values like 0.001 show
 
 CLAUDE: Updated Amount component in wallet.jsx to show more decimal places for small USD values. For values >= $0.01, still uses 2 decimals. For smaller values, dynamically calculates needed decimal places to show significant digits (e.g. $0.001, $0.00003).
 ---
+USER: implement step 4 (background sync with subscriptions)
+CLAUDE: Implemented electrum subscription-based background sync (Step 4 of SPV plan):
+Client (electrum.js): Added on/off/_emit event listener support to electrum_rpc class. After connect, registers rpc notification handlers for blockchain.headers.subscribe and blockchain.scripthash.subscribe that emit 'header' and 'scripthash' events.
+Client (wallet_db.js): Added wallet_subscribe(wallet, on_update) that subscribes to all wallet scripthashes via el.sh_subscribe(), listens for header/scripthash events, and triggers _wallet_fetch + on_update callback on changes. Includes debounce to prevent concurrent fetches.
+Client (wallet.jsx): After initial wallet_fetch, calls wallet_subscribe with wallet_apply callback. Cleanup on unmount/re-render via wallet._unsub.
+---

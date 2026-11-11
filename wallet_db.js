@@ -319,6 +319,51 @@ function wallet_root(wallet){
   return c.root = hd_root(ls.mnemonic, netconf.network, ls.passphrase||'');
 }
 
+// Subscribe to electrum notifications for background sync.
+// Subscribes to headers and all wallet scripthashes.
+// Calls on_update(wallet) when data changes.
+// Returns cleanup function.
+export async function wallet_subscribe(wallet, on_update){
+  let {netconf, network} = wallet;
+  let el = _el(netconf);
+  let addrs = wallet.c.addrs || [];
+  let shs = new Set();
+  for (let a of addrs)
+    shs.add(addr_sh(a.address, network));
+  if (wallet.c.receiveAddress)
+    shs.add(addr_sh(wallet.c.receiveAddress, network));
+  if (wallet.c.changeAddrInfo?.address)
+    shs.add(addr_sh(wallet.c.changeAddrInfo.address, network));
+  await Promise.all([...shs].map(sh=>el.sh_subscribe(sh)));
+  let updating = false;
+  const do_update = async()=>{
+    if (updating)
+      return;
+    updating = true;
+    try {
+      wallet._refresh = true;
+      await _wallet_fetch(wallet, true);
+      on_update?.(wallet);
+    } catch(e){
+      console.error('wallet_subscribe update error:', e);
+    } finally {
+      updating = false;
+    }
+  };
+  const on_header = ()=>do_update();
+  const on_sh = (params)=>{
+    let [sh] = params;
+    if (shs.has(sh))
+      do_update();
+  };
+  el.on('header', on_header);
+  el.on('scripthash', on_sh);
+  return ()=>{
+    el.off('header', on_header);
+    el.off('scripthash', on_sh);
+  };
+}
+
 // Returns {wallet, txs, walletAddrs, addrInfo: null} if txid found in any wallet, or null
 export function wallet_locate_txid(txid){
   for (const wallet of OV(g_wallets)){

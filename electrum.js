@@ -19,11 +19,27 @@ class electrum_rpc {
   state = 'offline';
   wait;
   last;
+  _listeners = {};
   constructor({url}){
     this.url = url;
     if (url[0]=='/')
       url = ws_origin()+url;
     this.url = url;
+  }
+  on(event, fn){
+    (this._listeners[event] ||= []).push(fn);
+  }
+  off(event, fn){
+    let arr = this._listeners[event];
+    if (!arr)
+      return;
+    let i = arr.indexOf(fn);
+    if (i>=0)
+      arr.splice(i, 1);
+  }
+  _emit(event, ...args){
+    for (let fn of (this._listeners[event] || []))
+      fn(...args);
   }
   async connect(){
     const set_error = (error)=>{
@@ -67,6 +83,10 @@ class electrum_rpc {
       return set_error('server version rpc: '+e);
     }
     this.state = 'online';
+    this.rpc.method('blockchain.headers.subscribe',
+      (params)=>this._emit('header', params));
+    this.rpc.method('blockchain.scripthash.subscribe',
+      (params)=>this._emit('scripthash', params));
     return this.wait.return(this.rpc);
   }
   async T_call(method, ...params){

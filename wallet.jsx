@@ -10,7 +10,7 @@ import {OE, OV, OA, ewait, esleep, CE, CEL, json, assert, str}
 import {ipc_postmessage} from 'lif-kernel/rpc.js';
 const {split_ws} = str;
 import {settings_get, settings_save, settings_cs_fetch,
-  wallet_db_init, wallet_fetch,
+  wallet_db_init, wallet_fetch, wallet_subscribe,
   wallet_add, wallet_del, wallet_update, wallets_get, wallet_get,
   hd_wallet, hd_path_def, hd_root, hd_addr, addr_valid,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
@@ -824,10 +824,17 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
       wallet._refresh = true;
       prevRefreshTick.current = refreshTick;
     }
+    wallet._unsub?.();
+    wallet._unsub = null;
     (async()=>{
       try {
         setUpdating(true);
         wallet_apply(await wallet_fetch(wallet, true));
+        try {
+          wallet._unsub = await wallet_subscribe(wallet, wallet_apply);
+        } catch(e){
+          console.error('wallet_subscribe error:', e);
+        }
       } catch(e){
         console.error('Connect error:', e);
         setConnErr(true);
@@ -835,6 +842,10 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
         setUpdating(false);
       }
     })();
+    return ()=>{
+      wallet._unsub?.();
+      wallet._unsub = null;
+    };
   }, [wallet.ls.id, wallet.ls.network, refreshTick]);
 
   const symbol = netconf.symbol;
