@@ -1344,7 +1344,8 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage}){
           )}
         </tbody>
       </table>
-      <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16}}>
+      <div style={{marginTop: 16, display: 'flex', flexDirection: 'column',
+        alignItems: 'flex-start', gap: 8}}>
         <button onClick={toggle_advanced}>
           Advanced: {advanced ? 'On' : 'Off'}
         </button>
