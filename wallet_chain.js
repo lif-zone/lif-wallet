@@ -4,7 +4,7 @@ import {buf_from_hex, buf_to_hex, addr_sh, HD_SCAN_GAP,
   hd_addr} from './settings.js';
 import {_el} from './electrum.js';
 import {hash256_pow, target_buf, target_rcmp} from './mine.js';
-import {hdr_get, hdr_put, hdr_get_tip, tx_get, tx_put,
+import {hdr_get, hdr_put, hdr_get_tip, hdr_delete_above, tx_get, tx_put,
   sh_history_get, sh_history_put} from './db_util.js';
 
 const HEADERS_FORWARD = 6;
@@ -77,6 +77,97 @@ function merge_ranges(ranges){
       merged.push(ranges[i]);
   }
   return merged;
+}
+
+// Detect and handle reorg. Returns {reorg: true, fork_height} or {reorg: false}.
+// Only commits if the new chain is longer and fully validated.
+async function wc_check_reorg(netconf, chain_height){
+  let net = netconf.symbol;
+  let pow = netconf.pow;
+  let el = _el(netconf);
+  let st = get_state(netconf);
+  if (!st.tip || !chain_height)
+    return {reorg: false};
+  let local_tip = st.tip.height;
+  if (chain_height<=local_tip)
+    return {reorg: false};
+  // Check if new tip connects to our chain
+  let new_tip_res = await el.block_headers(chain_height, 1);
+  if (new_tip_res.error || !new_tip_res.count)
+    return {reorg: false};
+  let new_tip = hdr_parse(new_tip_res.hex, chain_height);
+  // If we have the header at chain_height-1 and it matches, no reorg
+  let prev_local = await hdr_get(net, chain_height-1);
+  if (prev_local){
+    let prev_hash = hdr_hash(prev_local.raw, pow);
+    if (new_tip.prevHash==prev_hash)
+      return {reorg: false};
+  } else if (chain_height>local_tip+1){
+    // Gap between our tip and server tip — not necessarily a reorg,
+    // just missing headers. wc_sync_headers will fill the gap.
+    return {reorg: false};
+  }
+  // prevHash mismatch — potential reorg. Find fork point by walking back.
+  console.log('wc_check_reorg: potential reorg detected at height',
+    chain_height, 'local tip', local_tip);
+  // Fetch new chain headers from server, walking back to find fork point
+  let new_headers = []; // [{height, hdr, raw_hex}] in descending order
+  let h = chain_height;
+  while (h>0){
+    let res = await el.block_headers(h, 1);
+    if (res.error || !res.count){
+      console.warn('wc_check_reorg: failed to fetch header at', h);
+      return {reorg: false};
+    }
+    let raw_hex = res.hex;
+    let hdr = hdr_parse(raw_hex, h);
+    hdr.hash = hdr_hash(raw_hex, pow);
+    if (!hdr_verify_pow(raw_hex, pow)){
+      console.warn('wc_check_reorg: invalid PoW at height', h);
+      return {reorg: false};
+    }
+    new_headers.push({height: h, hdr, raw_hex});
+    // Check if this header's prevHash matches our stored header at h-1
+    let local_prev = await hdr_get(net, h-1);
+    if (local_prev){
+      let local_prev_hash = hdr_hash(local_prev.raw, pow);
+      if (hdr.prevHash==local_prev_hash){
+        // Found fork point: h-1
+        break;
+      }
+    }
+    if (h<=1)
+      break;
+    h--;
+  }
+  if (!new_headers.length)
+    return {reorg: false};
+  let fork_height = new_headers[new_headers.length-1].height-1;
+  console.log('wc_check_reorg: fork point at height', fork_height);
+  // Validate the new chain links internally (ascending order)
+  new_headers.reverse();
+  for (let i=1; i<new_headers.length; i++){
+    let prev_hash = new_headers[i-1].hdr.hash;
+    if (new_headers[i].hdr.prevHash!=prev_hash){
+      console.warn('wc_check_reorg: new chain broken at height',
+        new_headers[i].height);
+      return {reorg: false};
+    }
+  }
+  // New chain is valid and longer — commit reorg
+  console.log('wc_check_reorg: committing reorg, deleting headers above',
+    fork_height);
+  let deleted = await hdr_delete_above(net, fork_height);
+  console.log('wc_check_reorg: deleted', deleted, 'old headers');
+  // Write new headers to DB
+  for (let {height, hdr} of new_headers)
+    await hdr_put(net, height, hdr);
+  console.log('wc_check_reorg: wrote', new_headers.length, 'new headers');
+  // Update tip
+  st.tip = new_headers[new_headers.length-1].hdr;
+  // Invalidate TXes confirmed above fork point — they need re-verification
+  // The caller's wc_store_tx will re-fetch merkle proofs against new headers
+  return {reorg: true, fork_height};
 }
 
 // Sync headers around TX heights. Only fetches what's missing from DB.
@@ -172,9 +263,9 @@ function merkle_root_from_proof(txid, merkle, pos){
 // Fetch TX + merkle proof + verbose from electrum, store all. Cache-first.
 // Mempool TXes (height<=0) stored without merkle proof.
 // If a cached mempool TX is now confirmed, re-fetch with merkle proof.
-export async function wc_store_tx(netconf, txid, height){
+export async function wc_store_tx(netconf, txid, height, force){
   let existing = await tx_get(txid);
-  if (existing && (existing.height>0 || height<=0))
+  if (!force && existing && (existing.height>0 || height<=0))
     return existing;
   let el = _el(netconf);
   // Mempool: no merkle proof available
@@ -422,4 +513,4 @@ export async function wc_listunspent(netconf, addrs){
   return unspent;
 }
 
-export {HEADERS_FORWARD, HEADERS_BACKWARD};
+export {HEADERS_FORWARD, HEADERS_BACKWARD, wc_check_reorg};

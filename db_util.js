@@ -47,6 +47,20 @@ export async function hdr_get_range(net, from, to){
   let range = IDBKeyRange.bound([net, from], [net, to]);
   return await db.getAll('headers', range);
 }
+export async function hdr_delete_above(net, height){
+  let range = IDBKeyRange.bound([net, height+1], [net, Infinity]);
+  let tx = db.transaction('headers', 'readwrite');
+  let store = tx.objectStore('headers');
+  let cursor = await store.openCursor(range);
+  let count = 0;
+  while (cursor){
+    cursor.delete();
+    count++;
+    cursor = await cursor.continue();
+  }
+  await tx.done;
+  return count;
+}
 export async function tx_get(txid){
   return await db.get('txs', txid) ?? null;
 }

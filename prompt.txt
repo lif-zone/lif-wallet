@@ -1784,5 +1784,11 @@ Client (wallet_db.js): Added wallet_subscribe(wallet, on_update) that subscribes
 Client (wallet.jsx): After initial wallet_fetch, calls wallet_subscribe with wallet_apply callback. Cleanup on unmount/re-render via wallet._unsub.
 ---
 USER: Mine_screen should show default 100,000 H/s, not 0, before mining starts.
-CLAUDE: Added `hps` variable in both Mine_screen and Mine_pool_screen: `stats.hps || (on ? 0 : 100000)`. Shows 100,000 H/s before starting, real value after. Updated both H/s display cells to use `hps` instead of `(stats.hps||0)`.
+CLAUDE: Changed mine_est_default.hps from 50000 to 100000 in mine.js. Added 'instant' mode to mine_stats_calc_default(). In wallet.jsx, both Mine_screen and Mine_pool_screen use mine_stats_calc_default(mode) to get default hps and earn_hour when not mining.
+---
+USER: implement step 6 (reorg handling)
+CLAUDE: Implemented reorg handling:
+- db_util.js: Added hdr_delete_above(net, height) to delete headers above a given height.
+- wallet_chain.js: Added wc_check_reorg(netconf, chain_height) — fetches new chain headers into memory, validates PoW and prevHash chain, only commits (delete old + write new) if new chain is longer and fully valid. Finds fork point by walking back. Added force param to wc_store_tx to re-fetch merkle proofs for reorged TXes.
+- wallet_db.js: _wallet_fetch calls wc_check_reorg before syncing. On reorg, forces refresh of all histories and re-fetches merkle proofs for TXes above fork height.
 ---

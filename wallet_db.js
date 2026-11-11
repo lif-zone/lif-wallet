@@ -15,8 +15,8 @@ import {db_init, db_get, db_put, cache_clear, cache_ver, tx_get, tx_put}
   from './db_util.js';
 import {_el} from './electrum.js';
 import {wc_init, wc_sync_headers, wc_hd_scan, wc_store_tx, wc_get_balance,
-  wc_listunspent, wc_get_tx, wc_get_header, wc_tx_get_verbose}
-  from './wallet_chain.js';
+  wc_listunspent, wc_get_tx, wc_get_header, wc_tx_get_verbose,
+  wc_check_reorg} from './wallet_chain.js';
 import {el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
   wallet_bal, tx_send, kv_tx_add, kv_tx_send, kv_tx_edit,
   LIF_DOMAINS, kv_is_dns} from './tx_create.js';
@@ -148,6 +148,13 @@ async function _wallet_fetch(wallet, refresh){
   // Get chain height for cache staleness check
   let sub = await el.headers_subscribe();
   let chain_height = sub.error ? 0 : sub.height;
+  // Check for reorg before syncing
+  let reorg = await wc_check_reorg(netconf, chain_height);
+  if (reorg.reorg){
+    console.log('_wallet_fetch: reorg detected, fork at',
+      reorg.fork_height);
+    refresh = true;
+  }
   // HD scan — cache-first, fetches only what's missing
   // refresh=true: re-query all histories ignoring cached height
   const [extRes, chgRes] = await Promise.all([
@@ -163,8 +170,9 @@ async function _wallet_fetch(wallet, refresh){
     chain_height);
   if (hdr_res.error)
     console.error('wc_sync_headers:', hdr_res.error);
+  let fork_height = reorg.reorg ? reorg.fork_height : Infinity;
   await Promise.all(all_tx.map(h=>
-    wc_store_tx(netconf, h.tx_hash, h.height)));
+    wc_store_tx(netconf, h.tx_hash, h.height, h.height>fork_height)));
   // Rebroadcast our local unconfirmed TXes (within 24h of last broadcast)
   let unconf = all_tx.filter(h=>h.height<=0);
   let now = Date.now();
