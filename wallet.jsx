@@ -2789,8 +2789,6 @@ function Wallet_backup({wallet, onUpdate, onCancel, force}){
   const [phase, setPhase] = useState('show');
   const [input, setInput] = useState('');
   const [done, setDone] = useState(false);
-  const [showQr, setShowQr] = useState(false);
-  const qrCanvasRef = useRef(null);
   if (done || (!force && wallet.ls.backup_date))
     return null;
   const mnemonic = wallet.ls.mnemonic;
@@ -2798,14 +2796,6 @@ function Wallet_backup({wallet, onUpdate, onCancel, force}){
   const words_match = mnemonic_norm(input)==mnemonic_norm(mnemonic);
   const handle_continue = ()=>{ onUpdate({backup_date: Date.now()}); setDone(true); onCancel?.(); };
   const handle_forgot = ()=>{ setPhase('show'); setInput(''); };
-  useEffect(()=>{
-    if (!showQr || !qrCanvasRef.current)
-      return;
-    (async()=>{
-      const QRCode = (await import('qrcode')).default;
-      QRCode.toCanvas(qrCanvasRef.current, mnemonic, {width: 280, margin: 2});
-    })();
-  }, [showQr]);
   return (
     <div style={{marginTop: 16, border: '1px solid #f90', borderRadius: 6, padding: 12}}>
       <div style={{fontWeight: 'bold', marginBottom: 8}}>Export/Backup your wallet seed words:</div>
@@ -2831,20 +2821,7 @@ function Wallet_backup({wallet, onUpdate, onCancel, force}){
       {phase=='show' && (
         <div style={{display: 'flex', gap: 8, marginTop: 8}}>
           <button onClick={()=>setPhase('verify')}>I wrote it down on paper</button>
-          <button onClick={()=>setShowQr(!showQr)}>
-            {showQr ? 'Hide' : 'Show'} QR Code
-          </button>
           {onCancel && <button onClick={onCancel}>Cancel</button>}
-        </div>
-      )}
-      {showQr && (
-        <div style={{marginTop: 12}}>
-          <canvas ref={qrCanvasRef} style={{display: 'block'}} />
-          {wallet.ls.passphrase && (
-            <div style={{marginTop: 4, fontSize: 12, color: 'red'}}>
-              passphrase not included in QR
-            </div>
-          )}
         </div>
       )}
       {phase=='verify' && (
