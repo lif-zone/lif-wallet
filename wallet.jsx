@@ -16,7 +16,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
   wallet_cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
-  buf_to_hex,
+  buf_to_hex, db_clear_all,
 } from './wallet_db.js';
 import {mine_stats_calc, mine_stats_calc_default} from './mine.js';
 import {mine_solo, mine_instant, mine_instant_pool, mine_slave_set} from './mine_pool.js';
@@ -2703,6 +2703,12 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
           />
           Light SPV
         </label>
+      </div>
+      <div style={{marginTop: 16}}>
+        <button onClick={async()=>{
+          await db_clear_all();
+          location.reload();
+        }}>Clear cache - force refresh</button>
       </div>
       <div style={{marginTop: 12}}>
         <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>

@@ -11,8 +11,8 @@ import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, g_settings,
   settings_cs_load, settings_cs_fetch, lif_server_get, lif_server_set,
   addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
 } from './settings.js';
-import {db_init, db_get, db_put, cache_clear, cache_ver, tx_get, tx_put}
-  from './db_util.js';
+import {db_init, db_get, db_put, cache_clear, db_clear_all, cache_ver,
+  tx_get, tx_put} from './db_util.js';
 import {_el} from './electrum.js';
 import {wc_init, wc_sync_headers, wc_hd_scan, wc_store_tx, wc_get_balance,
   wc_listunspent, wc_get_tx, wc_get_header, wc_tx_get_verbose,
@@ -26,7 +26,7 @@ export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
   _el, el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
   wallet_bal, tx_send, kv_tx_add, kv_tx_send, kv_tx_edit,
-  LIF_DOMAINS, kv_is_dns};
+  LIF_DOMAINS, kv_is_dns, db_clear_all};
 
 
 lifnet.set_opt({client_name: 'wallet'});

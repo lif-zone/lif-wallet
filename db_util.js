@@ -86,5 +86,11 @@ export async function db_put(id, data){
 export async function cache_clear(){
   try { await db.clear('cache'); } catch{}
 }
+export async function db_clear_all(){
+  await db.clear('headers');
+  await db.clear('txs');
+  await db.clear('sh_history');
+  await db.clear('cache');
+}
 
 export const cache_ver = '2';

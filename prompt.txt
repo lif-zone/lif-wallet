@@ -1841,3 +1841,7 @@ CLAUDE: Added timestamp validation in wc_sync_headers: for headers beyond the la
 ---
 USER: Change Full SPV checkbox to radio buttons: Full SPV / Light SPV (still stored as full_spv true/false)
 CLAUDE: Replaced checkbox with two radio buttons in Settings_screen: "Full SPV" and "Light SPV". Still stored as settings.ls.full_spv boolean.
+
+---
+USER: Add "Clear cache - force refresh data" button in settings that clears all refetchable cache and reloads.
+CLAUDE: Added db_clear_all() in db_util.js — clears headers, txs, sh_history, and cache stores. Exported through wallet_db.js. Added button in Settings_screen that calls db_clear_all() then location.reload() to restart fetching everything.
