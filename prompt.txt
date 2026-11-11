@@ -1809,3 +1809,8 @@ CLAUDE: Refactored lib/node/http.js:
 - on_electrum() now loops over this.electrum_methods to register them on the per-connection WS, then adds only the subscribe methods (headers.subscribe, scripthash.subscribe) which need per-connection state.
 - Added GET /electrum_web/:method?q=param1,param2 route — calls the method from this.electrum_methods, splits q by commas, auto-coerces numeric params. Returns JSON result.
 ---
+USER: Add BTC checkpoints every 5000 blocks, add Full SPV checkbox
+CLAUDE:
+- wallet_chain.js: Expanded BTC checkpoints from 16 (every 50K) to 190 entries (every 5K, from 5000-950000). Added Full SPV mode: when g_settings.ls.full_spv is enabled, wc_sync_headers extends header ranges from nearest checkpoint to TX height (instead of just 100 back), so every header from checkpoint to TX is fetched, validated (prevHash + PoW + bits vs difficulty chain), and stored.
+- wallet.jsx: Added "Full SPV (validate all headers from checkpoint)" checkbox in Settings_screen, stored in settings.ls.full_spv.
+---

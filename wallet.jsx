@@ -2594,6 +2594,12 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
   const handleReset = (key)=>{
     set_electrum(v=>({...v, [key]: settings.netconf_def[key].electrum}));
   };
+  const [full_spv, set_full_spv] = useState(()=>!!settings.ls.full_spv);
+  const on_full_spv_toggle = v=>{
+    set_full_spv(v);
+    settings.ls.full_spv = !!v;
+    settings_save();
+  };
   const [devtools, set_devtools] = useState(()=>!!settings.ls.devtools);
   const onDevToolsToggle = v=>{
     set_devtools(v);
@@ -2678,6 +2684,16 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
         </div>
       )}
       <div style={{marginTop: 28}}>
+        <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+          <input
+            type="checkbox"
+            checked={full_spv}
+            onChange={e=>on_full_spv_toggle(e.target.checked)}
+          />
+          Full SPV (validate all headers from checkpoint)
+        </label>
+      </div>
+      <div style={{marginTop: 12}}>
         <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
           <input
             type="checkbox"
