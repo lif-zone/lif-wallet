@@ -296,6 +296,24 @@ function checkpoint_find(netconf, height){
   return {height: best[0], hash: best[1]};
 }
 
+function checkpoint_find_above(netconf, height){
+  let cps = CHECKPOINTS[netconf.symbol] || [];
+  let best = null;
+  for (let cp of cps){
+    if (cp[0]>height && (!best || cp[0]<best[0]))
+      best = {height: cp[0], hash: cp[1]};
+  }
+  return best;
+}
+
+function checkpoint_latest(netconf){
+  let cps = CHECKPOINTS[netconf.symbol] || [];
+  if (!cps.length)
+    return {height: 0, hash: netconf.network.genesisHash};
+  let last = cps[cps.length-1];
+  return {height: last[0], hash: last[1]};
+}
+
 // Fetch a single header from electrum, validate PoW, return parsed
 async function fetch_header(el, pow, height){
   let res = await el.block_headers(height, 1);
@@ -484,6 +502,13 @@ async function wc_check_reorg(netconf, chain_height){
     return {reorg: false};
   let fork_height = new_headers[new_headers.length-1].height-1;
   console.log('wc_check_reorg: fork point at height', fork_height);
+  // Reject reorgs below the latest checkpoint
+  let latest_cp = checkpoint_latest(netconf);
+  if (fork_height < latest_cp.height){
+    console.warn('wc_check_reorg: rejecting reorg below checkpoint',
+      latest_cp.height, 'fork at', fork_height);
+    return {reorg: false};
+  }
   // Validate the new chain links and bits (ascending order)
   new_headers.reverse();
   for (let i=0; i<new_headers.length; i++){
@@ -532,22 +557,29 @@ export async function wc_sync_headers(netconf, tx_heights, chain_height){
   let el = _el(netconf);
   if (!tx_heights?.length)
     return {height: chain_height, count: 0};
-  // Ensure difficulty chain covers all needed heights
-  let max_height = Math.min(chain_height,
-    Math.max(...tx_heights) + HEADERS_FORWARD);
-  let dc_res = await wc_ensure_difficulty_chain(netconf, max_height);
-  if (dc_res.error)
-    return dc_res;
   // Compute needed ranges from TX heights
   let full_spv = !!g_settings.ls?.full_spv;
   let ranges = tx_heights.map(h=>{
-    let from = full_spv
-      ? checkpoint_find(netconf, h).height
-      : Math.max(0, h-HEADERS_BACKWARD);
-    return [from, Math.min(chain_height, h+HEADERS_FORWARD)];
+    let from, to;
+    if (full_spv){
+      from = checkpoint_find(netconf, h).height;
+      let cp_above = checkpoint_find_above(netconf, h);
+      to = cp_above
+        ? Math.min(chain_height, cp_above.height)
+        : Math.min(chain_height, h+HEADERS_FORWARD);
+    } else {
+      from = Math.max(0, h-HEADERS_BACKWARD);
+      to = Math.min(chain_height, h+HEADERS_FORWARD);
+    }
+    return [from, to];
   });
-  ]);
   ranges = merge_ranges(ranges);
+  // Ensure difficulty chain covers all needed heights
+  let max_height = ranges.length
+    ? ranges[ranges.length-1][1] : 0;
+  let dc_res = await wc_ensure_difficulty_chain(netconf, max_height);
+  if (dc_res.error)
+    return dc_res;
   // Remove heights we already have
   let missing = [];
   for (let [from, to] of ranges){
@@ -639,8 +671,22 @@ function merkle_root_from_proof(txid, merkle, pos){
 // If a cached mempool TX is now confirmed, re-fetch with merkle proof.
 export async function wc_store_tx(netconf, txid, height, force){
   let existing = await tx_get(txid);
-  if (!force && existing && (existing.height>0 || height<=0))
+  if (!force && existing && (existing.height>0 || height<=0)){
+    // Re-verify merkle proof if header now available
+    if (existing.height>0 && !existing.verified && existing.merkle){
+      let hdr = await hdr_get(netconf.symbol, existing.height);
+      if (hdr){
+        let root = existing.merkle_root
+          || merkle_root_from_proof(txid, existing.merkle, existing.pos);
+        if (hdr.merkleRoot!=root)
+          return {error: 'invalid merkle proof for cached tx '+txid};
+        existing.verified = true;
+        existing.merkle_root = root;
+        await tx_put(txid, existing);
+      }
+    }
     return existing;
+  }
   let el = _el(netconf);
   // Mempool: no merkle proof available
   if (height<=0)
