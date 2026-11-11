@@ -34,6 +34,7 @@ let networks_lif = {
   scriptHash: 0x05,
   wif: 0x80,
   messagePrefix: '\x18Bitcoin Signed Message:\n',
+  genesisHash: '00000000e05445185102cd4c86f0b7bad830cff86eb52c916b0fe1fbea4b7c6b',
 };
 let networks_liftest = {
   bech32: 'liftest',
@@ -45,6 +46,7 @@ let networks_liftest = {
   scriptHash: 0x05,
   wif: 0x80,
   messagePrefix: '\x18Bitcoin Signed Message:\n',
+  genesisHash: '7c1609d00e5371d7eb590346659b1e901040013c41b5cbcff3d0f1c1bf318542',
 };
 
 export const netconf_def = {
@@ -81,7 +83,8 @@ export const netconf_def = {
   btc: {
     name: 'Bitcoin',
     symbol: 'BTC',
-    network: bitcoin.networks.bitcoin,
+    network: {...bitcoin.networks.bitcoin,
+      genesisHash: '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f'},
     electrum: 'lif:net/bitcoin/electrum',
     //electrum: 'wss://bitcoinserver.nl:50004', // unrestricted
     //electrum: 'wss://electrumx.nimiq.com:443/electrumx', // restricted from localhost:5000
@@ -96,7 +99,8 @@ export const netconf_def = {
   btc_testnet: {
     name: 'Bitcoin Testnet',
     symbol: 'tBTC',
-    network: bitcoin.networks.testnet,
+    network: {...bitcoin.networks.testnet,
+      genesisHash: '000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943'},
     electrum: 'lif:net/bitcoin_test/electrum',
     //electrum: 'wss://electrum.blockstream.info:993',
     explorer_tx: 'https://mempool.space/testnet/tx/',

@@ -3,13 +3,17 @@ import * as bitcoin from 'bitcoinjs-lib';
 import {buf_from_hex, buf_to_hex, addr_sh, HD_SCAN_GAP,
   hd_addr} from './settings.js';
 import {_el} from './electrum.js';
-import {hash256_pow, target_buf, target_rcmp} from './mine.js';
+import {hash256_pow, target_buf, target_rcmp, target_from_compact,
+  target_to_compact} from './mine.js';
 import {hdr_get, hdr_put, hdr_get_tip, hdr_delete_above, tx_get, tx_put,
   sh_history_get, sh_history_put} from './db_util.js';
 
 const HEADERS_FORWARD = 6;
 const HEADERS_BACKWARD = 100;
 const HEADER_SIZE = 80;
+const POW_LIMIT_BITS = 0x1d00ffff;
+const RETARGET_INTERVAL = 2016;
+const TARGET_TIMESPAN = 14 * 24 * 60 * 60;
 
 // Parse 80-byte raw header buffer into fields
 function hdr_parse(raw_hex, height){
@@ -40,6 +44,34 @@ function hdr_verify_pow(raw_hex, pow){
   let hash = hash256_pow(pow, buf);
   let target = target_buf(bits);
   return target_rcmp(hash, target)<=0;
+}
+
+// Validate bits field against retarget rules.
+// prev_hdr: the header at height-1 (required).
+// retarget_hdr: the header at the start of the previous period (height - RETARGET_INTERVAL),
+//   required only at retarget boundaries (height % RETARGET_INTERVAL == 0).
+function hdr_validate_bits(hdr, prev_hdr, retarget_hdr){
+  if (hdr.height==0)
+    return true;
+  if (hdr.height % RETARGET_INTERVAL!=0){
+    // Mid-period: bits must equal previous block
+    return hdr.bits==prev_hdr.bits;
+  }
+  // Retarget boundary
+  if (!retarget_hdr)
+    return false;
+  let actual = prev_hdr.time - retarget_hdr.time;
+  if (actual < TARGET_TIMESPAN / 4)
+    actual = TARGET_TIMESPAN / 4;
+  if (actual > TARGET_TIMESPAN * 4)
+    actual = TARGET_TIMESPAN * 4;
+  let target = target_from_compact(prev_hdr.bits);
+  target = target * BigInt(actual) / BigInt(TARGET_TIMESPAN);
+  let pow_limit = target_from_compact(POW_LIMIT_BITS);
+  if (target > pow_limit)
+    target = pow_limit;
+  let expected_bits = target_to_compact(target);
+  return hdr.bits==expected_bits;
 }
 
 // State per network
@@ -144,14 +176,28 @@ async function wc_check_reorg(netconf, chain_height){
     return {reorg: false};
   let fork_height = new_headers[new_headers.length-1].height-1;
   console.log('wc_check_reorg: fork point at height', fork_height);
-  // Validate the new chain links internally (ascending order)
+  // Validate the new chain links and bits (ascending order)
   new_headers.reverse();
-  for (let i=1; i<new_headers.length; i++){
-    let prev_hash = new_headers[i-1].hdr.hash;
-    if (new_headers[i].hdr.prevHash!=prev_hash){
-      console.warn('wc_check_reorg: new chain broken at height',
-        new_headers[i].height);
-      return {reorg: false};
+  for (let i=0; i<new_headers.length; i++){
+    let {height, hdr} = new_headers[i];
+    if (i>0){
+      let prev_hash = new_headers[i-1].hdr.hash;
+      if (hdr.prevHash!=prev_hash){
+        console.warn('wc_check_reorg: new chain broken at height', height);
+        return {reorg: false};
+      }
+    }
+    // Validate bits
+    let prev_hdr = i>0 ? new_headers[i-1].hdr
+      : await hdr_get(net, height-1);
+    if (prev_hdr){
+      let retarget_hdr = null;
+      if (height % RETARGET_INTERVAL==0)
+        retarget_hdr = await hdr_get(net, height - RETARGET_INTERVAL);
+      if (!hdr_validate_bits(hdr, prev_hdr, retarget_hdr)){
+        console.warn('wc_check_reorg: invalid bits at height', height);
+        return {reorg: false};
+      }
     }
   }
   // New chain is valid and longer — commit reorg
@@ -221,6 +267,11 @@ export async function wc_sync_headers(netconf, tx_heights, chain_height){
         let h = start+i;
         let hdr = hdr_parse(raw_hex, h);
         hdr.hash = hdr_hash(raw_hex, pow);
+        // Validate genesis hash
+        if (h==0){
+          if (hdr.hash!=netconf.network.genesisHash)
+            return {error: 'genesis hash mismatch'};
+        }
         if (!hdr_verify_pow(raw_hex, pow))
           return {error: 'invalid pow at height '+h};
         // Validate prevHash against previous header if we have it
@@ -229,6 +280,14 @@ export async function wc_sync_headers(netconf, tx_heights, chain_height){
           let prev_hash = hdr_hash(prev.raw, pow);
           if (hdr.prevHash!=prev_hash)
             return {error: 'prevHash mismatch at height '+h};
+        }
+        // Validate bits follows retarget rules
+        if (prev){
+          let retarget_hdr = null;
+          if (h % RETARGET_INTERVAL==0)
+            retarget_hdr = await hdr_get(net, h - RETARGET_INTERVAL);
+          if (!hdr_validate_bits(hdr, prev, retarget_hdr))
+            return {error: 'invalid bits at height '+h};
         }
         await hdr_put(net, h, hdr);
         total++;

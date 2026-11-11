@@ -1792,3 +1792,8 @@ CLAUDE: Implemented reorg handling:
 - wallet_chain.js: Added wc_check_reorg(netconf, chain_height) — fetches new chain headers into memory, validates PoW and prevHash chain, only commits (delete old + write new) if new chain is longer and fully valid. Finds fork point by walking back. Added force param to wc_store_tx to re-fetch merkle proofs for reorged TXes.
 - wallet_db.js: _wallet_fetch calls wc_check_reorg before syncing. On reorg, forces refresh of all histories and re-fetches merkle proofs for TXes above fork height.
 ---
+USER: Add difficulty retarget validation and genesis hash trust anchors to SPV wallet
+CLAUDE: Implemented difficulty validation:
+- settings.js: Added genesisHash to all network objects (networks_lif, networks_liftest, BTC mainnet/testnet via spread).
+- wallet_chain.js: Added POW_LIMIT_BITS, RETARGET_INTERVAL, TARGET_TIMESPAN constants. Added hdr_validate_bits(hdr, prev_hdr, retarget_hdr) — mid-period: bits must equal previous block; at retarget boundary: computes expected bits from elapsed time, clamped to 1/4x-4x range and pow limit. Integrated into wc_sync_headers (validates genesis hash at height 0, validates bits for every header with a known predecessor, fetches retarget boundary header from DB when needed). Integrated into wc_check_reorg (validates bits for each header in the reorg chain).
+---
