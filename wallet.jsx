@@ -1287,13 +1287,7 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage}){
     wallet.ls.type, wallet.ls.zpub, wallet.ls.xpriv]);
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
-      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-        <h3 style={{margin: 0}}>Wallet Settings</h3>
-        <button
-          onClick={()=>setShowDelete(true)}
-          style={{color: '#c00', border: '1px solid #c00', background: 'transparent'}}
-        >Delete Wallet</button>
-      </div>
+      <h3 style={{margin: 0}}>Wallet Settings</h3>
       {showDelete && (
         <Wallet_delete onDelete={onDelete} onCancel={()=>setShowDelete(false)} />
       )}
@@ -1363,6 +1357,10 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete, onSignMessage}){
         {!is_watch &&
           <button onClick={onSignMessage}>Sign Message</button>
         }
+        <button
+          onClick={()=>setShowDelete(true)}
+          style={{color: '#c00', border: '1px solid #c00', background: 'transparent'}}
+        >Delete Wallet</button>
       </div>
     </div>
   );
@@ -1418,8 +1416,8 @@ function Receive_screen({address, symbol, netconf}){
 // Sign/Verify Message
 function Sign_message_screen({wallet}){
   const [mode, setMode] = useState('sign');
+  const [signAddr, setSignAddr] = useState('');
   const [message, setMessage] = useState('');
-  const [addrIdx, setAddrIdx] = useState(0);
   const [signature, setSig] = useState('');
   const [verifyAddr, setVerifyAddr] = useState('');
   const [verifyMsg, setVerifyMsg] = useState('');
@@ -1428,14 +1426,19 @@ function Sign_message_screen({wallet}){
   const [copied, setCopied] = useState(false);
   const {netconf, network} = wallet;
   const addrs = wallet.c.addrs||[];
-  const ext_addrs = addrs.filter(a=>a.chain==0);
   const handleSign = ()=>{
     setResult(null);
+    if (!signAddr.trim())
+      return void setResult({ok: false, msg: 'Enter an address'});
     if (!message.trim())
       return void setResult({ok: false, msg: 'Enter a message'});
-    let addr_info = ext_addrs[addrIdx];
-    if (!addr_info?.keyPair)
-      return void setResult({ok: false, msg: 'No signing key for this address'});
+    let addr_info = addrs.find(a=>a.address==signAddr.trim());
+    if (!addr_info)
+      return void setResult({ok: false,
+        msg: 'Address not found in this wallet'});
+    if (!addr_info.keyPair)
+      return void setResult({ok: false,
+        msg: 'No signing key for this address'});
     try {
       let sig = sign_message(message, addr_info.keyPair, network);
       setSig(sig);
@@ -1477,14 +1480,12 @@ function Sign_message_screen({wallet}){
       {mode=='sign' && (
         <div style={{marginTop: 12}}>
           <label>Address:</label>
-          <select value={addrIdx}
-            onChange={e=>setAddrIdx(+e.target.value)}
+          <input value={signAddr}
+            onChange={e=>setSignAddr(e.target.value)}
+            placeholder={netconf.network.bech32+'1...'}
             style={{display: 'block', width: '100%', marginTop: 4,
-              boxSizing: 'border-box', ...mono}}>
-            {ext_addrs.map((a, i)=>
-              <option key={i} value={i}>{a.address}</option>
-            )}
-          </select>
+              boxSizing: 'border-box', ...mono}}
+          />
           <label style={{display: 'block', marginTop: 12}}>Message:</label>
           <textarea rows={4} value={message}
             onChange={e=>setMessage(e.target.value)}
