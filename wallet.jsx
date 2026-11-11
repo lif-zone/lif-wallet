@@ -1564,6 +1564,8 @@ function Sign_psbt_screen({wallet}){
   const [phase, setPhase] = useState('scan');
   const [signedHex, setSignedHex] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [pasteInput, setPasteInput] = useState('');
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const qrCanvasRef = useRef(null);
@@ -1585,10 +1587,6 @@ function Sign_psbt_screen({wallet}){
     }
   };
   useEffect(()=>{
-    if (phase=='scan' && !scanning)
-      startScan();
-  }, []);
-  useEffect(()=>{
     if (!scanning || !videoRef.current)
       return;
     videoRef.current.srcObject = streamRef.current;
@@ -1598,19 +1596,8 @@ function Sign_psbt_screen({wallet}){
       try {
         let codes = await detector.detect(videoRef.current);
         if (codes.length){
-          let hex = codes[0].rawValue.trim();
+          setPasteInput(codes[0].rawValue.trim());
           stopScan();
-          try {
-            let psbt = bitcoin.Psbt.fromHex(hex, {network});
-            let signed = psbt_sign(psbt, wallet);
-            if (!signed)
-              return void await modal.alert(
-                'No inputs matched this wallet\'s addresses');
-            setSignedHex(psbt.toHex());
-            setPhase('show');
-          } catch(e){
-            await modal.alert('Failed to sign: '+e.message);
-          }
           return;
         }
       } catch(e){}
@@ -1628,6 +1615,28 @@ function Sign_psbt_screen({wallet}){
         {width: 300, margin: 2, errorCorrectionLevel: 'L'});
     })();
   }, [phase, signedHex]);
+  const handleCopySigned = async()=>{
+    navigator.clipboard.writeText(signedHex);
+    setCopied(true);
+    await esleep(2000);
+    setCopied(false);
+  };
+  const handleSign = async()=>{
+    let hex = pasteInput.trim();
+    if (!hex)
+      return;
+    try {
+      let psbt = bitcoin.Psbt.fromHex(hex, {network});
+      let signed = psbt_sign(psbt, wallet);
+      if (!signed)
+        return void await modal.alert(
+          'No inputs matched this wallet\'s addresses');
+      setSignedHex(psbt.toHex());
+      setPhase('show');
+    } catch(e){
+      await modal.alert('Failed to sign: '+e.message);
+    }
+  };
   if (phase=='show')
     return (
       <div style={{marginTop: 16, maxWidth: 480}}>
@@ -1636,27 +1645,60 @@ function Sign_psbt_screen({wallet}){
           Scan this QR with the watch-only wallet to broadcast.
         </p>
         <canvas ref={qrCanvasRef} style={{display: 'block', marginTop: 8}} />
+        <div onClick={handleCopySigned}
+          style={{marginTop: 8, fontFamily: 'monospace', fontSize: 11,
+            background: '#f4f4f4', border: '1px solid #ccc', borderRadius: 4,
+            padding: 8, wordBreak: 'break-all', cursor: 'pointer',
+            maxHeight: 80, overflow: 'auto'}}>
+          {signedHex}
+        </div>
+        {copied &&
+          <div style={{color: 'green', fontSize: 13, marginTop: 4}}>
+            Copied to clipboard
+          </div>
+        }
       </div>
     );
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <h3>Sign PSBT</h3>
       <p style={{fontSize: 13, color: '#666'}}>
-        Scan an unsigned PSBT QR code to sign it with this wallet.
+        Scan or paste an unsigned PSBT to sign it with this wallet.
       </p>
+      <div style={{display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between'}}>
+        <label>Unsigned PSBT:</label>
+        <button onClick={startScan} title="Scan QR code"
+          style={{padding: '2px 4px', lineHeight: 0}}>
+          <img src={import.meta.resolve('./qrcode.svg')}
+            style={{width: 20, height: 20}} />
+        </button>
+      </div>
+      <textarea rows={3} value={pasteInput}
+        onChange={e=>setPasteInput(e.target.value)}
+        placeholder="Scan or paste unsigned PSBT hex"
+        style={{display: 'block', width: '100%', marginTop: 4,
+          fontFamily: 'monospace', fontSize: 11, boxSizing: 'border-box'}}
+      />
+      <div style={{marginTop: 8}}>
+        <button onClick={handleSign}
+          disabled={!pasteInput.trim()}>
+          Sign
+        </button>
+      </div>
       {scanning && (
-        <div style={{marginTop: 12, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', gap: 16}}>
+        <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          zIndex: 1000, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 16}}>
           <video ref={videoRef} autoPlay playsInline
             style={{width: 300, height: 300, objectFit: 'cover', borderRadius: 8,
-              border: '2px solid #ccc'}} />
-          <button onClick={stopScan}>Cancel</button>
+              border: '2px solid white'}} />
+          <button onClick={stopScan}
+            style={{color: 'white', background: 'transparent',
+              border: '1px solid white', padding: '6px 20px'}}>
+            Cancel
+          </button>
         </div>
-      )}
-      {!scanning && (
-        <button onClick={startScan} style={{marginTop: 12}}>
-          Scan PSBT QR Code
-        </button>
       )}
     </div>
   );
@@ -2555,6 +2597,8 @@ function Send_screen({wallet, onSent}){
   const [fee, setFee] = useState(0);
   const [psbtHex, setPsbtHex] = useState('');
   const [psbtPhase, setPsbtPhase] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [pasteInput, setPasteInput] = useState('');
   const qrCanvasRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -2625,13 +2669,12 @@ function Send_screen({wallet, onSent}){
         {video: {facingMode: 'environment'}});
       streamRef.current = stream;
       setScanning(true);
-      setPsbtPhase('scan');
     } catch(e){
       await modal.alert('Camera not available: '+e.message);
     }
   };
   useEffect(()=>{
-    if (psbtPhase!='scan' || !scanning || !videoRef.current)
+    if (!scanning || !videoRef.current)
       return;
     videoRef.current.srcObject = streamRef.current;
     let detector = new window.BarcodeDetector({formats: ['qr_code']});
@@ -2640,18 +2683,8 @@ function Send_screen({wallet, onSent}){
       try {
         let codes = await detector.detect(videoRef.current);
         if (codes.length){
-          let hex = codes[0].rawValue.trim();
+          setPasteInput(codes[0].rawValue.trim());
           stopScan();
-          setSending(true);
-          try {
-            let txid = await psbt_finalize_broadcast(hex, netconf);
-            await modal.alert('Transaction broadcast!\nTXID: '+txid);
-            onSent?.();
-          } catch(e){
-            await modal.alert('Broadcast failed: '+e.message);
-          } finally {
-            setSending(false);
-          }
           return;
         }
       } catch(e){}
@@ -2659,8 +2692,29 @@ function Send_screen({wallet, onSent}){
     };
     videoRef.current.onplay = ()=>{ rafId = requestAnimationFrame(scan); };
     return ()=>{ cancelAnimationFrame(rafId); };
-  }, [psbtPhase, scanning]);
+  }, [scanning]);
   const symbol = netconf.symbol;
+  const handleCopyPsbt = async()=>{
+    navigator.clipboard.writeText(psbtHex);
+    setCopied(true);
+    await esleep(2000);
+    setCopied(false);
+  };
+  const handleBroadcast = async()=>{
+    let hex = pasteInput.trim();
+    if (!hex)
+      return;
+    setSending(true);
+    try {
+      let txid = await psbt_finalize_broadcast(hex, netconf);
+      await modal.alert('Transaction broadcast!\nTXID: '+txid);
+      onSent?.();
+    } catch(e){
+      await modal.alert('Broadcast failed: '+e.message);
+    } finally {
+      setSending(false);
+    }
+  };
   if (psbtPhase=='show')
     return (
       <div style={{marginTop: 16, maxWidth: 480}}>
@@ -2669,13 +2723,56 @@ function Send_screen({wallet, onSent}){
           Scan this QR with a signing wallet, then scan the signed PSBT back.
         </p>
         <canvas ref={qrCanvasRef} style={{display: 'block', marginTop: 8}} />
-        <div style={{marginTop: 12, display: 'flex', gap: 8,
-          alignItems: 'flex-start', flexDirection: 'column'}}>
-          <button onClick={startScanSigned}>
-            Scan signed PSBT
-          </button>
-          <button onClick={()=>setPsbtPhase(null)}>Back</button>
+        <div onClick={handleCopyPsbt}
+          style={{marginTop: 8, fontFamily: 'monospace', fontSize: 11,
+            background: '#f4f4f4', border: '1px solid #ccc', borderRadius: 4,
+            padding: 8, wordBreak: 'break-all', cursor: 'pointer',
+            maxHeight: 80, overflow: 'auto'}}>
+          {psbtHex}
         </div>
+        {copied &&
+          <div style={{color: 'green', fontSize: 13, marginTop: 4}}>
+            Copied to clipboard
+          </div>
+        }
+        <div style={{marginTop: 12}}>
+          <div style={{display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between'}}>
+            <label>Signed PSBT:</label>
+            <button onClick={startScanSigned} title="Scan QR code"
+              style={{padding: '2px 4px', lineHeight: 0}}>
+              <img src={import.meta.resolve('./qrcode.svg')}
+                style={{width: 20, height: 20}} />
+            </button>
+          </div>
+          <textarea rows={3} value={pasteInput}
+            onChange={e=>setPasteInput(e.target.value)}
+            placeholder="Scan or paste signed PSBT hex"
+            style={{display: 'block', width: '100%', marginTop: 4,
+              fontFamily: 'monospace', fontSize: 11, boxSizing: 'border-box'}}
+          />
+          <div style={{display: 'flex', gap: 8, marginTop: 8}}>
+            <button onClick={handleBroadcast}
+              disabled={sending||!pasteInput.trim()}>
+              {sending ? 'Broadcasting…' : 'Broadcast'}
+            </button>
+            <button onClick={()=>setPsbtPhase(null)}>Back</button>
+          </div>
+        </div>
+        {scanning && (
+          <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+            zIndex: 1000, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 16}}>
+            <video ref={videoRef} autoPlay playsInline
+              style={{width: 300, height: 300, objectFit: 'cover', borderRadius: 8,
+                border: '2px solid white'}} />
+            <button onClick={stopScan}
+              style={{color: 'white', background: 'transparent',
+                border: '1px solid white', padding: '6px 20px'}}>
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
     );
   return (

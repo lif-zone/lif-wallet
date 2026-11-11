@@ -1898,3 +1898,10 @@ CLAUDE: Changed xpub_str derivation in Wallet_settings_subscreen to also return 
 ---
 USER: Rename "Backup Wallet" to "Export/Backup Wallet", add QR code export inside the backup screen showing the mnemonic.
 CLAUDE: Renamed button to "Export/Backup Wallet". Added "Show QR Code" toggle button in the backup screen's show phase. QR encodes the BIP39 mnemonic words (the universal wallet backup format). Shows a note below the QR: "Seed words (BIP39 mnemonic)" and warns "passphrase not included in QR" if the wallet has a passphrase. QR hides when toggled off or when entering verify phase.
+---
+USER: Simplify PSBT text/scan UI - just clickable text below QR codes (like Receive screen) and textarea with scan icon (like Add Wallet watch-only input), not separate paste inputs with separate buttons
+CLAUDE: Simplified both PSBT screens in wallet.jsx:
+- Send_screen (unsigned PSBT display): QR canvas + clickable copyable hex text below + textarea with scan icon for signed PSBT input + Broadcast button. Scanner populates textarea instead of directly broadcasting.
+- Sign_psbt_screen (sign PSBT): Replaced auto-start camera + separate paste input with textarea + scan icon for unsigned PSBT input + Sign button. Scanner populates textarea. Signed PSBT display: QR canvas + clickable copyable hex text.
+- Both use fullscreen overlay for camera scanning, consistent pattern.
+- Removed separate "Scan signed PSBT" / "Scan PSBT QR Code" buttons and "Or paste" labeled inputs.
