@@ -219,7 +219,7 @@ export const mine_est_default = {
   reward_share: 0.9,
   nslice: 1024,
   slice_share: 0.5,
-  hps: 50000,
+  hps: 100000,
 };
 export function mine_stats_calc_default(mode){
   let m = mine_est_default;
@@ -230,11 +230,16 @@ export function mine_stats_calc_default(mode){
   if (mode=='solo'){
     reward_share = m.reward_share;
     reward = m.reward*reward_share;
+  } else if (mode=='instant'){
+    win_h = Math.floor(win_h/m.nslice);
+    target = target_to_compact(target_from_nhash(win_h));
+    reward_share = m.reward_share*m.slice_share;
+    reward = Math.floor(m.reward*reward_share/m.nslice);
   } else if (mode=='pool'){
     win_h = Math.floor(win_h/m.nslice);
     target = target_to_compact(target_from_nhash(win_h));
     reward_share = m.reward_share*m.slice_share;
-    reward = Math.Floor(m.reward*reward_share/m.nslice);
+    reward = Math.floor(m.reward*reward_share/m.nslice);
   } else
     assert();
   let win_time = hps ? Math.floor(win_h/hps) : 0;

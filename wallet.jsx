@@ -18,7 +18,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
   buf_to_hex,
 } from './wallet_db.js';
-import {mine_stats_calc} from './mine.js';
+import {mine_stats_calc, mine_stats_calc_default} from './mine.js';
 import {mine_solo, mine_instant, mine_instant_pool, mine_slave_set} from './mine_pool.js';
 
 await wallet_db_init();
@@ -1270,7 +1270,9 @@ function Mine_screen({wallet, start}){
   const [mode, setMode] = useState(info.mode || 'instant');
   const cur_mode = on ? info.mode : mode;
   const stats = (info.stats_by_mode||{})[cur_mode] || {};
-  const hps = stats.hps || (on ? 0 : 100000);
+  const def_stats = !on && !stats.hps && mine_stats_calc_default(cur_mode);
+  const hps = stats.hps || (on ? 0 : def_stats.hps);
+  const earn_hour = stats.earn_hour || (on ? 0 : def_stats.earn_hour);
   const elapsed = info.elapsed ||= 0;
   const last_err = info.err ||= null;
   const status = info.status ||= null;
@@ -1345,13 +1347,13 @@ function Mine_screen({wallet, start}){
             <td style={{color: '#666', paddingRight: 16}}>Expected earnings</td>
             <td><strong>
               <div>
-                Hour: <Amount sat={stats.earn_hour||0} signed symbol={symbol}/>
+                Hour: <Amount sat={earn_hour} signed symbol={symbol}/>
               </div>
               <div>
-                Day: <Amount sat={stats.earn_hour*24||0} signed symbol={symbol}/>
+                Day: <Amount sat={earn_hour*24} signed symbol={symbol}/>
               </div>
               <div>
-                Month: <Amount sat={stats.earn_hour*30*24||0} signed symbol={symbol}/>
+                Month: <Amount sat={earn_hour*30*24} signed symbol={symbol}/>
               </div>
             </strong></td>
           </tr>
@@ -1369,7 +1371,9 @@ function Mine_pool_screen({wallet}){
   const info = pool_state[id] ||= {};
   const on = info.on ||= false;
   const stats = info.stats ||= {};
-  const hps = stats.hps || (on ? 0 : 100000);
+  const def_stats = !on && !stats.hps && mine_stats_calc_default('pool');
+  const hps = stats.hps || (on ? 0 : def_stats.hps);
+  const earn_hour = stats.earn_hour || (on ? 0 : def_stats.earn_hour);
   const elapsed = info.elapsed ||= 0;
   const last_err = info.err ||= null;
   const status = info.status ||= null;
@@ -1451,13 +1455,13 @@ function Mine_pool_screen({wallet}){
             <td style={{color: '#666', paddingRight: 16}}>Expected earnings</td>
             <td><strong>
               <div>
-                Hour: <Amount sat={stats.earn_hour||0} signed symbol={symbol}/>
+                Hour: <Amount sat={earn_hour} signed symbol={symbol}/>
               </div>
               <div>
-                Day: <Amount sat={stats.earn_hour*24||0} signed symbol={symbol}/>
+                Day: <Amount sat={earn_hour*24} signed symbol={symbol}/>
               </div>
               <div>
-                Month: <Amount sat={stats.earn_hour*30*24||0} signed symbol={symbol}/>
+                Month: <Amount sat={earn_hour*30*24} signed symbol={symbol}/>
               </div>
             </strong></td>
           </tr>
