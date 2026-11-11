@@ -8,8 +8,8 @@ import {hash256_pow, target_buf, target_rcmp, target_from_compact,
 import {hdr_get, hdr_put, hdr_get_tip, hdr_delete_above, tx_get, tx_put,
   sh_history_get, sh_history_put} from './db_util.js';
 
-const HEADERS_FORWARD = 6;
-const HEADERS_BACKWARD = 100;
+const HEADERS_FORWARD = 20;
+const HEADERS_BACKWARD = 20;
 const HEADER_SIZE = 80;
 const POW_LIMIT_BITS = 0x1d00ffff;
 const RETARGET_INTERVAL = 2016;
