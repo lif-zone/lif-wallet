@@ -1833,3 +1833,7 @@ CLAUDE: Updated wallet_chain.js:
 ---
 USER: In Full SPV mode, don't count unverified confirmed TXs in balance/UTXOs. Still store them, but skip them until verified.
 CLAUDE: Updated wc_get_balance and wc_listunspent in wallet_chain.js: in Full SPV mode, skip confirmed TXs with verified==false from both balance calculation and UTXO listing. Mempool TXs (height<=0) still shown as unconfirmed. This ensures only merkle-proof-verified TXs count toward balance in Full SPV mode.
+
+---
+USER: Reject headers with timestamp more than 24 hours in the future, only for blocks after the last checkpoint.
+CLAUDE: Added timestamp validation in wc_sync_headers: for headers beyond the latest checkpoint, reject if timestamp > now + 24 hours. Within checkpoint ranges this is unnecessary since all headers are contiguously validated with full PoW.

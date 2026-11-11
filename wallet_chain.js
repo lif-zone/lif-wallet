@@ -603,6 +603,8 @@ export async function wc_sync_headers(netconf, tx_heights, chain_height){
     return {height: chain_height, count: 0};
   // Fetch missing ranges in batches
   let pow = netconf.pow;
+  let latest_cp = checkpoint_latest(netconf);
+  let max_ts = Math.floor(Date.now()/1000) + 24*60*60;
   let total = 0;
   for (let [from, to] of missing){
     let start = from;
@@ -621,6 +623,9 @@ export async function wc_sync_headers(netconf, tx_heights, chain_height){
         hdr.hash = hdr_hash(raw_hex, pow);
         if (!hdr_verify_pow(raw_hex, pow))
           return {error: 'invalid pow at height '+h};
+        // Reject future timestamps beyond last checkpoint
+        if (h>latest_cp.height && hdr.time>max_ts)
+          return {error: 'header timestamp too far in future at '+h};
         // Validate prevHash against previous header if we have it
         let prev = await hdr_get(net, h-1);
         if (prev){
