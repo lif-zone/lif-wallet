@@ -231,10 +231,10 @@ function useMining(){
       return {...s};
     });
     const {netconf} = wallet;
-    const saddr = wallet.c.receiveAddress;
     const target = target_get();
     const et = etask(function*(){
       while (runningRef.current){
+        let saddr = wallet.c.receiveAddress;
         let mine_et;
         if (mode=='instant')
           mine_et = mine_instant({netconf, saddr, target});

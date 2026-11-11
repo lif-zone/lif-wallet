@@ -1876,3 +1876,7 @@ CLAUDE: Updated LIF mainnet and testnet bip32 version bytes in settings.js from 
 ---
 USER: Fix LIF bip32 version bytes to match lif-coin node values.
 CLAUDE: The wallet had wrong bip32 version bytes for LIF (0x019da4e0/0x019da380 producing "Ltuu"). The correct values were already in lif-coin/lib/protocol/networks.js (0x5d6413db/0x5d631e9c producing "Lpub/Lprv"). Updated both LIF mainnet and testnet in settings.js to use the node's values, and updated the parse_xpub fallback list. Extended keys are now compatible between wallet and node.
+
+---
+USER: Solo mining always uses the same address. It captures receiveAddress once at start and never updates during the loop.
+CLAUDE: Moved `saddr = wallet.c.receiveAddress` from outside the while loop to inside it, so each mining iteration uses the current receive address. After a successful mine triggers a wallet refresh, the next iteration picks up the new address.
