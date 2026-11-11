@@ -2595,9 +2595,9 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
     set_electrum(v=>({...v, [key]: settings.netconf_def[key].electrum}));
   };
   const [full_spv, set_full_spv] = useState(()=>!!settings.ls.full_spv);
-  const on_full_spv_toggle = v=>{
+  const on_full_spv_change = v=>{
     set_full_spv(v);
-    settings.ls.full_spv = !!v;
+    settings.ls.full_spv = v;
     settings_save();
   };
   const [devtools, set_devtools] = useState(()=>!!settings.ls.devtools);
@@ -2686,11 +2686,22 @@ function Settings_screen({onDevtools, onBack, onLocateAddr}){
       <div style={{marginTop: 28}}>
         <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
           <input
-            type="checkbox"
+            type="radio"
+            name="spv_mode"
             checked={full_spv}
-            onChange={e=>on_full_spv_toggle(e.target.checked)}
+            onChange={()=>on_full_spv_change(true)}
           />
-          Full SPV (validate all headers from checkpoint)
+          Full SPV
+        </label>
+        <label style={{display: 'flex', alignItems: 'center', gap: 8,
+          cursor: 'pointer', marginTop: 4}}>
+          <input
+            type="radio"
+            name="spv_mode"
+            checked={!full_spv}
+            onChange={()=>on_full_spv_change(false)}
+          />
+          Light SPV
         </label>
       </div>
       <div style={{marginTop: 12}}>

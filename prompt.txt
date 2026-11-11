@@ -1837,3 +1837,7 @@ CLAUDE: Updated wc_get_balance and wc_listunspent in wallet_chain.js: in Full SP
 ---
 USER: Reject headers with timestamp more than 24 hours in the future, only for blocks after the last checkpoint.
 CLAUDE: Added timestamp validation in wc_sync_headers: for headers beyond the latest checkpoint, reject if timestamp > now + 24 hours. Within checkpoint ranges this is unnecessary since all headers are contiguously validated with full PoW.
+
+---
+USER: Change Full SPV checkbox to radio buttons: Full SPV / Light SPV (still stored as full_spv true/false)
+CLAUDE: Replaced checkbox with two radio buttons in Settings_screen: "Full SPV" and "Light SPV". Still stored as settings.ls.full_spv boolean.
