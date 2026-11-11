@@ -10,13 +10,14 @@ import {buf_from_hex, buf_to_hex, HD_SCAN_GAP, g_settings,
   netconf_def, LIF_SERVER_DEF, settings_load, settings_save, settings_get,
   settings_cs_load, settings_cs_fetch, lif_server_get, lif_server_set,
   addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
+  parse_xpub, xpub_derive_addr,
 } from './settings.js';
 import {db_init, db_get, db_put, cache_clear, db_clear_all, cache_ver,
   tx_get, tx_put} from './db_util.js';
 import {_el} from './electrum.js';
-import {wc_init, wc_sync_headers, wc_hd_scan, wc_store_tx, wc_get_balance,
-  wc_listunspent, wc_get_tx, wc_get_header, wc_tx_get_verbose,
-  wc_check_reorg} from './wallet_chain.js';
+import {wc_init, wc_sync_headers, wc_hd_scan, wc_zpub_scan, wc_addr_scan,
+  wc_store_tx, wc_get_balance, wc_listunspent, wc_get_tx, wc_get_header,
+  wc_tx_get_verbose, wc_check_reorg} from './wallet_chain.js';
 import {el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
   wallet_bal, tx_send, kv_tx_add, kv_tx_send, kv_tx_edit,
   LIF_DOMAINS, kv_is_dns} from './tx_create.js';
@@ -26,7 +27,7 @@ export {buf_from_hex, buf_to_hex, LIF_SERVER_DEF, settings_save, settings_get,
   addr_sh, hd_root, hd_path_def, hd_addr, hd_wallet, addr_valid,
   _el, el_estimatefee, tx_broadcast, fee_calc, hd_addr_find, tx_out_find,
   wallet_bal, tx_send, kv_tx_add, kv_tx_send, kv_tx_edit,
-  LIF_DOMAINS, kv_is_dns, db_clear_all};
+  LIF_DOMAINS, kv_is_dns, db_clear_all, parse_xpub, xpub_derive_addr};
 
 
 lifnet.set_opt({client_name: 'wallet'});
@@ -116,18 +117,27 @@ async function wallet_cs_load(wallet){
     return console.log(`cache_ver changed ${cs.cache_ver} -> ${cache_ver}`);
   OA(cs, _cs);
   OA(c, _cs);
-  const root = wallet_root(wallet);
-  const ap = wallet.derivPath || hd_path_def(netconf);
-  c.addrs = cs.addrs.map(a=>({...a,
-    ...hd_addr(network, root, ap, a.chain, a.index)}));
-  c.changeAddrInfo = cs.changeAddrInfo
-    ? {...cs.changeAddrInfo, ...hd_addr(network, root, ap,
-      cs.changeAddrInfo.chain, cs.changeAddrInfo.index)}
-    : null;
-  c.utxos = cs.utxos.map(u=>({
-    ...u, addrInfo: cs.addrs.find(a=>a.address==u.address)||
-      hd_addr(network, root, ap, u.chain, u.index)
-  }));
+  let {ls} = wallet;
+  if (ls.type=='watch' || ls.type=='zpub'){
+    c.addrs = cs.addrs || [];
+    c.changeAddrInfo = cs.changeAddrInfo || null;
+    c.utxos = (cs.utxos||[]).map(u=>({
+      ...u, addrInfo: c.addrs.find(a=>a.address==u.address)
+    }));
+  } else {
+    const root = wallet_root(wallet);
+    const ap = ls.derivPath || hd_path_def(netconf);
+    c.addrs = cs.addrs.map(a=>({...a,
+      ...hd_addr(network, root, ap, a.chain, a.index)}));
+    c.changeAddrInfo = cs.changeAddrInfo
+      ? {...cs.changeAddrInfo, ...hd_addr(network, root, ap,
+        cs.changeAddrInfo.chain, cs.changeAddrInfo.index)}
+      : null;
+    c.utxos = (cs.utxos||[]).map(u=>({
+      ...u, addrInfo: cs.addrs.find(a=>a.address==u.address)||
+        hd_addr(network, root, ap, u.chain, u.index)
+    }));
+  }
 }
 
 // Preload all wallets from IndexedDB into memory at module startup
@@ -142,8 +152,6 @@ export async function wallet_db_init(){
 async function _wallet_fetch(wallet, refresh){
   const {netconf, network, ls, c, cs} = wallet;
   const el = _el(netconf);
-  const root = wallet_root(wallet);
-  const ap = ls.derivPath || hd_path_def(netconf);
   await wc_init(netconf);
   // Get chain height for cache staleness check
   let sub = await el.headers_subscribe();
@@ -155,13 +163,38 @@ async function _wallet_fetch(wallet, refresh){
       reorg.fork_height);
     refresh = true;
   }
-  // HD scan — cache-first, fetches only what's missing
-  // refresh=true: re-query all histories ignoring cached height
-  const [extRes, chgRes] = await Promise.all([
-    wc_hd_scan(netconf, root, ap, 0, chain_height, refresh),
-    wc_hd_scan(netconf, root, ap, 1, chain_height, refresh),
-  ]);
-  const addrs = c.addrs = [...extRes.used, ...chgRes.used];
+  // Scan addresses based on wallet type
+  let addrs, receiveAddress, changeAddrInfo;
+  if (ls.type=='watch'){
+    let res = await wc_addr_scan(netconf, ls.addresses||[],
+      chain_height, refresh);
+    addrs = res.used;
+    receiveAddress = ls.addresses?.[0] || '';
+    changeAddrInfo = null;
+  } else if (ls.type=='zpub'){
+    let node = parse_xpub(ls.zpub, network);
+    const [extRes, chgRes] = await Promise.all([
+      wc_zpub_scan(netconf, node, 0, chain_height, refresh),
+      wc_zpub_scan(netconf, node, 1, chain_height, refresh),
+    ]);
+    addrs = [...extRes.used, ...chgRes.used];
+    receiveAddress = xpub_derive_addr(network, node, 0,
+      extRes.nextIndex).address;
+    changeAddrInfo = xpub_derive_addr(network, node, 1,
+      chgRes.nextIndex);
+  } else {
+    const root = wallet_root(wallet);
+    const ap = ls.derivPath || hd_path_def(netconf);
+    const [extRes, chgRes] = await Promise.all([
+      wc_hd_scan(netconf, root, ap, 0, chain_height, refresh),
+      wc_hd_scan(netconf, root, ap, 1, chain_height, refresh),
+    ]);
+    addrs = [...extRes.used, ...chgRes.used];
+    receiveAddress = hd_addr(network, root, ap, 0,
+      extRes.nextIndex).address;
+    changeAddrInfo = hd_addr(network, root, ap, 1, chgRes.nextIndex);
+  }
+  c.addrs = addrs;
   // Sync headers for confirmed TXes, then store all TXes
   let all_tx = addrs.flatMap(a=>(a.hist||[]).map(h=>h));
   let confirmed_heights = [...new Set(all_tx.filter(h=>h.height>0)
@@ -173,27 +206,29 @@ async function _wallet_fetch(wallet, refresh){
   let fork_height = reorg.reorg ? reorg.fork_height : Infinity;
   await Promise.all(all_tx.map(h=>
     wc_store_tx(netconf, h.tx_hash, h.height, h.height>fork_height)));
-  // Rebroadcast our local unconfirmed TXes (within 24h of last broadcast)
-  let unconf = all_tx.filter(h=>h.height<=0);
-  let now = Date.now();
-  for (let h of unconf){
-    let entry = await tx_get(h.tx_hash);
-    if (!entry?.local || !entry.raw)
-      continue;
-    if (entry.broadcast_ts && now-entry.broadcast_ts>24*60*60*1000)
-      continue;
-    try {
-      await el.tx_broadcast(entry.raw);
-      entry.broadcast_ts = Date.now();
-      await tx_put(h.tx_hash, entry);
-    } catch(e){}
+  // Rebroadcast our local unconfirmed TXes (only for non-watch wallets)
+  if (!ls.type || ls.type=='hd'){
+    let unconf = all_tx.filter(h=>h.height<=0);
+    let now = Date.now();
+    for (let h of unconf){
+      let entry = await tx_get(h.tx_hash);
+      if (!entry?.local || !entry.raw)
+        continue;
+      if (entry.broadcast_ts && now-entry.broadcast_ts>24*60*60*1000)
+        continue;
+      try {
+        await el.tx_broadcast(entry.raw);
+        entry.broadcast_ts = Date.now();
+        await tx_put(h.tx_hash, entry);
+      } catch(e){}
+    }
   }
   cs.addrs = c.addrs.map(({address, chain, index, hist})=>(
     {address, chain, index, hist}));
-  c.receiveAddress = hd_addr(network, root, ap, 0, extRes.nextIndex).address;
-  cs.receiveAddress = c.receiveAddress;
-  c.changeAddrInfo = hd_addr(network, root, ap, 1, chgRes.nextIndex);
-  cs.changeAddrInfo = c.changeAddrInfo
+  c.receiveAddress = receiveAddress;
+  cs.receiveAddress = receiveAddress;
+  c.changeAddrInfo = changeAddrInfo;
+  cs.changeAddrInfo = changeAddrInfo
     ? {address: c.changeAddrInfo.address,
       chain: c.changeAddrInfo.chain, index: c.changeAddrInfo.index}
     : null;

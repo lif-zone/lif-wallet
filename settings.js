@@ -254,6 +254,32 @@ export function hd_wallet(mnemonic, net_id, passphrase='', derivPath){
   return {address, keyPair, network, netconf, root};
 }
 
+// Parse extended public key (xpub/zpub/ypub) with flexible version handling
+export function parse_xpub(xpub_str, network){
+  // Try with network's native bip32 versions
+  try { return bip32.fromBase58(xpub_str, network); }
+  catch(e){}
+  // Try known extended key versions
+  const versions = [
+    {bip32: {public: 0x0488B21E, private: 0x0488ADE4}}, // xpub
+    {bip32: {public: 0x04b24746, private: 0x04b2430c}}, // zpub
+    {bip32: {public: 0x049d7cb2, private: 0x049d7878}}, // ypub
+    {bip32: {public: 0x045f1cf6, private: 0x045f18bc}}, // vpub (testnet zpub)
+    {bip32: {public: 0x043587CF, private: 0x04358394}}, // tpub
+  ];
+  for (let v of versions){
+    try { return bip32.fromBase58(xpub_str, v); }
+    catch(e){}
+  }
+  throw new Error('Invalid extended public key');
+}
+
+export function xpub_derive_addr(network, node, chain, index){
+  let child = node.derive(chain).derive(index);
+  let {address} = bitcoin.payments.p2wpkh({pubkey: child.publicKey, network});
+  return {address, chain, index};
+}
+
 export function addr_valid(network, addr){
   try {
     bitcoin.address.toOutputScript(addr, network);

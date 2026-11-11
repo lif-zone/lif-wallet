@@ -1845,3 +1845,26 @@ CLAUDE: Replaced checkbox with two radio buttons in Settings_screen: "Full SPV" 
 ---
 USER: Add "Clear cache - force refresh data" button in settings that clears all refetchable cache and reloads.
 CLAUDE: Added db_clear_all() in db_util.js — clears headers, txs, sh_history, and cache stores. Exported through wallet_db.js. Added button in Settings_screen that calls db_clear_all() then location.reload() to restart fetching everything.
+
+---
+USER: Add watch-only wallet support: (1) zpub/xpub extended public key — derives HD addresses without private keys, (2) explicit addresses — watch one or more bc1.../lif1... addresses. A single address wallet can have multiple addresses. A zpub wallet has only one zpub.
+CLAUDE: Implemented watch-only wallets across 4 files:
+
+settings.js:
+- Added parse_xpub(xpub_str, network) — parses zpub/xpub/ypub/vpub/tpub with flexible version handling
+- Added xpub_derive_addr(network, node, chain, index) — derives address from public-only node
+
+wallet_chain.js:
+- Added wc_zpub_scan(netconf, node, chain, chain_height, refresh) — HD scan using public-only node, same gap logic as wc_hd_scan
+- Added wc_addr_scan(netconf, addresses, chain_height, refresh) — fetches history for explicit address list
+
+wallet_db.js:
+- _wallet_fetch: branches on ls.type ('watch', 'zpub', or default HD). zpub uses parse_xpub + wc_zpub_scan, watch uses wc_addr_scan, HD unchanged. Rebroadcast skipped for watch-only.
+- wallet_cs_load: watch-only wallets skip keyPair re-derivation
+- New imports/exports: parse_xpub, xpub_derive_addr, wc_zpub_scan, wc_addr_scan
+
+wallet.jsx:
+- Wallet_add_screen: radio buttons for wallet type (HD / Watch zpub / Watch addresses). HD shows mnemonic, zpub shows xpub input, watch shows address textarea (one per line)
+- Wallet_card: shows "watch-only" label, hides Mine buttons for watch-only
+- Wallet_screen: hides Send, Mine, KV, Mining pool buttons for watch-only. Mnemonic validation skipped for watch-only.
+- Wallet_settings_subscreen: shows wallet type, hides Backup/Derivation path/Passphrase for watch-only, shows zpub or addresses instead

@@ -1,7 +1,7 @@
 // wallet_chain.js - SPV header chain store and validation
 import * as bitcoin from 'bitcoinjs-lib';
 import {buf_from_hex, buf_to_hex, addr_sh, HD_SCAN_GAP,
-  hd_addr, g_settings} from './settings.js';
+  hd_addr, xpub_derive_addr, g_settings} from './settings.js';
 import {_el} from './electrum.js';
 import {hash256_pow, target_buf, target_rcmp, target_from_compact,
   target_to_compact} from './mine.js';
@@ -830,6 +830,47 @@ export async function wc_hd_scan(netconf, root, accountPath, chain,
     start += HD_SCAN_GAP;
   }
   return {used, nextIndex: lastUsed+1};
+}
+
+// HD scan using public-only node (for zpub watch-only wallets)
+export async function wc_zpub_scan(netconf, node, chain, chain_height, refresh){
+  let network = netconf.network;
+  let used = [];
+  let lastUsed = -1;
+  let start = 0;
+  while (true){
+    let entries = Array.from({length: HD_SCAN_GAP},
+      (_, i)=>xpub_derive_addr(network, node, chain, start+i));
+    let hists = await Promise.all(entries.map(e=>
+      sh_history_fetch(netconf, addr_sh(e.address, network),
+        chain_height, refresh)));
+    let anyUsed = false;
+    for (let i=0; i<HD_SCAN_GAP; i++){
+      let hist = hists[i];
+      if (!hist?.length)
+        continue;
+      used.push({...entries[i], hist});
+      lastUsed = entries[i].index;
+      anyUsed = true;
+    }
+    if (!anyUsed)
+      break;
+    start += HD_SCAN_GAP;
+  }
+  return {used, nextIndex: lastUsed+1};
+}
+
+// Scan explicit addresses (for address watch-only wallets)
+export async function wc_addr_scan(netconf, addresses, chain_height, refresh){
+  let network = netconf.network;
+  let used = [];
+  let hists = await Promise.all(addresses.map(addr=>
+    sh_history_fetch(netconf, addr_sh(addr, network), chain_height, refresh)));
+  for (let i=0; i<addresses.length; i++){
+    let hist = hists[i];
+    used.push({address: addresses[i], chain: 0, index: i, hist: hist || []});
+  }
+  return {used, nextIndex: addresses.length};
 }
 
 // Step 3: UTXO + balance from local DB

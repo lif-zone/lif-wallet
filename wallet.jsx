@@ -16,7 +16,7 @@ import {settings_get, settings_save, settings_cs_fetch,
   _el, tx_send, kv_tx_send, kv_tx_edit, kv_tx_add, tx_broadcast,
   wallet_cache_clear, wallet_bal, wallet_locate_addr, wallet_locate_txid, kv_is_dns, LIF_DOMAINS,
   LIF_SERVER_DEF, lif_server_get, lif_server_set,
-  buf_to_hex, db_clear_all,
+  buf_to_hex, db_clear_all, parse_xpub, xpub_derive_addr,
 } from './wallet_db.js';
 import {mine_stats_calc, mine_stats_calc_default} from './mine.js';
 import {mine_solo, mine_instant, mine_instant_pool, mine_slave_set} from './mine_pool.js';
@@ -584,7 +584,8 @@ function Wallet_card({wallet, onClick, onMine, onMinePool}){
   const [txCount, setTxCount] = useState(wallet.c.transactions?.length ?? null);
   const [keysOwned, setKeysOwned] = useState(wallet.c.ownedKeys?.length ?? 0);
   const [connErr, setConnErr] = useState(false);
-  const derived = bip39.validateMnemonic(wallet.ls.mnemonic);
+  const is_valid = wallet.ls.type=='watch' || wallet.ls.type=='zpub'
+    || bip39.validateMnemonic(wallet.ls.mnemonic);
 
   const fetch_update = ()=>{
     if (wallet.c.balance==undefined)
@@ -594,7 +595,7 @@ function Wallet_card({wallet, onClick, onMine, onMinePool}){
     setKeysOwned(wallet.c.ownedKeys.length);
   };
   useEffect(()=>{
-    if (!derived)
+    if (!is_valid)
       return;
     (async()=>{
       try {
@@ -607,7 +608,7 @@ function Wallet_card({wallet, onClick, onMine, onMinePool}){
     })();
   }, [wallet.ls.id, wallet.ls.network, netconf.electrum]);
 
-  if (!derived){
+  if (!is_valid){
     return (
       <div style={{...cardStyle, color: 'red'}} onClick={onClick}>
         <p>Invalid wallet</p>
@@ -617,9 +618,14 @@ function Wallet_card({wallet, onClick, onMine, onMinePool}){
 
   const symbol = netconf.symbol;
   const label = wallet.ls.name;
+  const is_watch = wallet.ls.type=='watch' || wallet.ls.type=='zpub';
   return (
     <div style={cardStyle} onClick={onClick}>
-      <div style={{fontWeight: 'bold', fontSize: 15}}>{label}</div>
+      <div style={{fontWeight: 'bold', fontSize: 15}}>
+        {label}
+        {is_watch && <span style={{fontSize: 11, color: '#888',
+          marginLeft: 6}}>watch-only</span>}
+      </div>
       <div style={{marginTop: 10}}>
         {connErr ? (
           <span style={{color: '#c00', fontSize: 12}}>Connection error</span>
@@ -641,22 +647,27 @@ function Wallet_card({wallet, onClick, onMine, onMinePool}){
           </>
         )}
       </div>
-      <div style={{marginTop: 6, display: 'flex', gap: 8}} onClick={e=>e.stopPropagation()}>
-        <Mine_on wallet={wallet} onMine={onMine} />
-        <Mine_pool_on wallet={wallet} onMinePool={onMinePool} />
-      </div>
+      {!is_watch && (
+        <div style={{marginTop: 6, display: 'flex', gap: 8}} onClick={e=>e.stopPropagation()}>
+          <Mine_on wallet={wallet} onMine={onMine} />
+          <Mine_pool_on wallet={wallet} onMinePool={onMinePool} />
+        </div>
+      )}
     </div>
   );
 }
 
 // Add Wallet Screen
 function Wallet_add_screen({wallets, onAdd, onCancel}){
+  const [walletType, setWalletType] = useState('hd');
   const [networkKey, setNetworkKey] = useState('lif');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const netconfs = settings.netconf;
   const [derivPath, setDerivPath] = useState(
     ()=>hd_path_def(netconfs['lif']));
   const [mnemonicInput, setMnemonicInput] = useState(bip39.generateMnemonic());
+  const [zpubInput, setZpubInput] = useState('');
+  const [addrInput, setAddrInput] = useState('');
   const defaultName = (()=>{
     let max = 0;
     for (const w of OV(wallets)){
@@ -672,6 +683,35 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
   const [error, setError] = useState('');
   const handleAdd = ()=>{
     setError('');
+    const network = netconfs[networkKey].network;
+    if (walletType=='zpub'){
+      let zpub = zpubInput.trim();
+      if (!zpub)
+        return void setError('Enter an extended public key');
+      try {
+        let node = parse_xpub(zpub, network);
+        xpub_derive_addr(network, node, 0, 0);
+      } catch(e){
+        return void setError('Invalid extended public key: '+e.message);
+      }
+      onAdd({id: Date.now().toString(), name: name.trim(),
+        network: networkKey, type: 'zpub', zpub});
+      return;
+    }
+    if (walletType=='watch'){
+      let lines = addrInput.trim().split(/[\n,]+/).map(s=>s.trim())
+        .filter(Boolean);
+      if (!lines.length)
+        return void setError('Enter at least one address');
+      for (let addr of lines){
+        if (!addr_valid(network, addr))
+          return void setError('Invalid address: '+addr);
+      }
+      onAdd({id: Date.now().toString(), name: name.trim(),
+        network: networkKey, type: 'watch', addresses: lines});
+      return;
+    }
+    // HD wallet
     const cleaned = mnemonicInput.trim().toLowerCase();
     if (!bip39.validateMnemonic(cleaned))
       return void setError('Invalid mnemonic phrase');
@@ -690,7 +730,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
     <div style={{maxWidth: 480}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <h2 style={{margin: 0}}>Add Wallet</h2>
-        {!showAdvanced &&
+        {walletType=='hd' && !showAdvanced &&
           <button onClick={()=>setShowAdvanced(true)}>Advanced</button>
         }
       </div>
@@ -702,6 +742,26 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
           placeholder="My Wallet"
           style={{display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box'}}
         />
+      </div>
+      <div style={{marginTop: 12}}>
+        <label>Type:</label>
+        <div style={{marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4}}>
+          <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+            <input type="radio" name="wallet_type" checked={walletType=='hd'}
+              onChange={()=>setWalletType('hd')} />
+            HD Wallet (12/24 words)
+          </label>
+          <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+            <input type="radio" name="wallet_type" checked={walletType=='zpub'}
+              onChange={()=>setWalletType('zpub')} />
+            Watch-only (extended public key)
+          </label>
+          <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+            <input type="radio" name="wallet_type" checked={walletType=='watch'}
+              onChange={()=>setWalletType('watch')} />
+            Watch-only (addresses)
+          </label>
+        </div>
       </div>
       <div style={{marginTop: 12}}>
         <label>Coin:</label>
@@ -720,44 +780,69 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
           ))}
         </div>
       </div>
-      <div style={{marginTop: 12}}>
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+      {walletType=='hd' && <>
+        <div style={{marginTop: 12}}>
           <label>Wallet secret 12 words - WRITE THIS DOWN ON PAPER:</label>
-        </div>
-        <textarea
-          rows={4}
-          placeholder={'Enter the 12 or 24 secret words of your wallet'}
-          value={mnemonicInput}
-          onChange={e=>setMnemonicInput(e.target.value)}
-          style={{display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box'}}
-        />
-      </div>
-      <div style={{marginTop: 12}}>
-        <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-          <input
-            type="checkbox"
-            checked={usePassphrase}
-            onChange={e=>setUsePassphrase(e.target.checked)}
-          />
-          Passphrase
-        </label>
-        {usePassphrase && (
-          <input
-            type="text"
-            placeholder="Passphrase"
-            value={passphrase}
-            onChange={e=>setPassphrase(e.target.value)}
+          <textarea
+            rows={4}
+            placeholder={'Enter the 12 or 24 secret words of your wallet'}
+            value={mnemonicInput}
+            onChange={e=>setMnemonicInput(e.target.value)}
             style={{display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box'}}
           />
-        )}
-      </div>
-      {showAdvanced && (
+        </div>
         <div style={{marginTop: 12}}>
-          <label>Derivation path:</label>
+          <label style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+            <input
+              type="checkbox"
+              checked={usePassphrase}
+              onChange={e=>setUsePassphrase(e.target.checked)}
+            />
+            Passphrase
+          </label>
+          {usePassphrase && (
+            <input
+              type="text"
+              placeholder="Passphrase"
+              value={passphrase}
+              onChange={e=>setPassphrase(e.target.value)}
+              style={{display: 'block', width: '100%', marginTop: 6, boxSizing: 'border-box'}}
+            />
+          )}
+        </div>
+        {showAdvanced && (
+          <div style={{marginTop: 12}}>
+            <label>Derivation path:</label>
+            <input
+              value={derivPath}
+              onChange={e=>setDerivPath(e.target.value)}
+              style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
+                fontSize: 13, boxSizing: 'border-box'}}
+            />
+          </div>
+        )}
+      </>}
+      {walletType=='zpub' && (
+        <div style={{marginTop: 12}}>
+          <label>Extended public key (zpub, xpub, vpub, tpub):</label>
           <input
-            value={derivPath}
-            onChange={e=>setDerivPath(e.target.value)}
+            value={zpubInput}
+            onChange={e=>setZpubInput(e.target.value)}
+            placeholder="zpub6..."
             style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
+              fontSize: 13, boxSizing: 'border-box'}}
+          />
+        </div>
+      )}
+      {walletType=='watch' && (
+        <div style={{marginTop: 12}}>
+          <label>Addresses (one per line):</label>
+          <textarea
+            rows={4}
+            value={addrInput}
+            onChange={e=>setAddrInput(e.target.value)}
+            placeholder={'bc1q...\nlif1...'}
+            style={{display: 'block', width: '100%', marginTop: 6, fontFamily: 'monospace',
               fontSize: 13, boxSizing: 'border-box'}}
           />
         </div>
@@ -815,9 +900,10 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
   useEffect(()=>{ setWalletLoading?.(updating && !hasCached); },
     [updating, hasCached]);
 
+  const is_watch = wallet.ls.type=='watch' || wallet.ls.type=='zpub';
   const prevRefreshTick = useRef(refreshTick);
   useEffect(()=>{
-    if (!bip39.validateMnemonic(wallet.ls.mnemonic))
+    if (!is_watch && !bip39.validateMnemonic(wallet.ls.mnemonic))
       return;
     if (prevRefreshTick.current!=refreshTick)
     {
@@ -851,10 +937,12 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
   const symbol = netconf.symbol;
   return (
     <div>
-      <div style={{display: 'flex', gap: 8}}>
-        <Mine_on wallet={wallet} onMine={onMine} />
-        <Mine_pool_on wallet={wallet} onMinePool={onMinePool} />
-      </div>
+      {!is_watch && (
+        <div style={{display: 'flex', gap: 8}}>
+          <Mine_on wallet={wallet} onMine={onMine} />
+          <Mine_pool_on wallet={wallet} onMinePool={onMinePool} />
+        </div>
+      )}
       {connErr && (
         <p style={{color: '#c00', marginTop: 8}}>
           Failed to connect to Electrum server ({netconf.electrum})
@@ -869,12 +957,12 @@ function Wallet_screen({wallet, onDelete, onUpdate, onSelectTx,
       </div>
       <div style={{display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center'}}>
         <button onClick={onReceive}>Receive</button>
-        <button onClick={onSend}>Send</button>
-        {netconf.lif_kv && <button onClick={onKvAdd}>Get Domain Name</button>}
-        {netconf.lif_kv && settings.ls.advanced && <button onClick={onKvAddRaw}>Get Key/Val</button>}
-        {netconf.lif_kv && <button onClick={onMine}>Mine</button>}
-        {netconf.lif_kv && settings.ls.advanced && <button onClick={onMinePool}>Mining pool</button>}
-        {netconf.lif_kv && settings.ls.devtools && transactions.some(tx=>!tx.timestamp) && (
+        {!is_watch && <button onClick={onSend}>Send</button>}
+        {!is_watch && netconf.lif_kv && <button onClick={onKvAdd}>Get Domain Name</button>}
+        {!is_watch && netconf.lif_kv && settings.ls.advanced && <button onClick={onKvAddRaw}>Get Key/Val</button>}
+        {!is_watch && netconf.lif_kv && <button onClick={onMine}>Mine</button>}
+        {!is_watch && netconf.lif_kv && settings.ls.advanced && <button onClick={onMinePool}>Mining pool</button>}
+        {!is_watch && netconf.lif_kv && settings.ls.devtools && transactions.some(tx=>!tx.timestamp) && (
           <button onClick={async()=>{
             try {
               let res = await fetch(lif_server_get()+'/mine', {method: 'POST'});
@@ -1004,6 +1092,7 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
     settings_save();
     setAdvanced(!!settings.ls.advanced);
   };
+  const is_watch = wallet.ls.type=='watch' || wallet.ls.type=='zpub';
   const hasPassphrase = !!wallet.ls.passphrase;
   const derivPath = wallet.ls.derivPath || hd_path_def(netconf);
   return (
@@ -1018,7 +1107,9 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
           <button onClick={toggle_advanced}>
             Advanced: {advanced ? 'On' : 'Off'}
           </button>
-          <button onClick={()=>setShowBackup(true)}>Backup Wallet</button>
+          {!is_watch &&
+            <button onClick={()=>setShowBackup(true)}>Backup Wallet</button>
+          }
         </div>
       </div>
       {showDelete && (
@@ -1044,17 +1135,41 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
       <table style={{marginTop: 12, borderCollapse: 'collapse', width: '100%'}}>
         <tbody>
           <tr>
+            <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Type</td>
+            <td style={{padding: '5px 0'}}>{
+              wallet.ls.type=='watch' ? 'Watch-only (addresses)'
+              : wallet.ls.type=='zpub' ? 'Watch-only (extended public key)'
+              : 'HD Wallet'
+            }</td>
+          </tr>
+          <tr>
             <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Network</td>
             <td style={{padding: '5px 0'}}>{netconf.name}</td>
           </tr>
-          <tr>
-            <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Derivation path</td>
-            <td style={{padding: '5px 0', fontFamily: 'monospace', fontSize: 13}}>{derivPath}</td>
-          </tr>
-          <tr>
-            <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Passphrase</td>
-            <td style={{padding: '5px 0'}}>{hasPassphrase ? 'Yes' : 'No'}</td>
-          </tr>
+          {!is_watch && <>
+            <tr>
+              <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Derivation path</td>
+              <td style={{padding: '5px 0', fontFamily: 'monospace', fontSize: 13}}>{derivPath}</td>
+            </tr>
+            <tr>
+              <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Passphrase</td>
+              <td style={{padding: '5px 0'}}>{hasPassphrase ? 'Yes' : 'No'}</td>
+            </tr>
+          </>}
+          {wallet.ls.type=='zpub' && (
+            <tr>
+              <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Extended key</td>
+              <td style={{padding: '5px 0', fontFamily: 'monospace', fontSize: 11,
+                wordBreak: 'break-all'}}>{wallet.ls.zpub}</td>
+            </tr>
+          )}
+          {wallet.ls.type=='watch' && (
+            <tr>
+              <td style={{padding: '5px 12px 5px 0', color: '#666', whiteSpace: 'nowrap'}}>Addresses</td>
+              <td style={{padding: '5px 0', fontFamily: 'monospace', fontSize: 11,
+                wordBreak: 'break-all'}}>{(wallet.ls.addresses||[]).join(', ')}</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
