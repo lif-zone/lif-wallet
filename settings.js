@@ -27,8 +27,8 @@ export const DUST_VAL = 1;
 let networks_lif = {
   bech32: 'lif',
   bip32: {
-    public: 0x019c3550,
-    private: 0x019c3115,
+    public: 0x5d6413db,
+    private: 0x5d631e9c,
   },
   pubKeyHash: 0x00,
   scriptHash: 0x05,
@@ -39,8 +39,8 @@ let networks_lif = {
 let networks_liftest = {
   bech32: 'liftest',
   bip32: {
-    public: 0x019c3550,
-    private: 0x019c3115,
+    public: 0x5d6413db,
+    private: 0x5d631e9c,
   },
   pubKeyHash: 0x00,
   scriptHash: 0x05,
@@ -266,7 +266,7 @@ export function parse_xpub(xpub_str, network){
     {bip32: {public: 0x049d7cb2, private: 0x049d7878}}, // ypub
     {bip32: {public: 0x045f1cf6, private: 0x045f18bc}}, // vpub (testnet zpub)
     {bip32: {public: 0x043587CF, private: 0x04358394}}, // tpub
-    {bip32: {public: 0x019c3550, private: 0x019c3115}}, // Lpub (LIF)
+    {bip32: {public: 0x5d6413db, private: 0x5d631e9c}}, // Lpub (LIF)
   ];
   for (let v of versions){
     try { return bip32.fromBase58(xpub_str, v); }

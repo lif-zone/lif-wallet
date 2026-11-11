@@ -1872,3 +1872,7 @@ wallet.jsx:
 ---
 USER: Change LIF bip32 version bytes so extended keys start with Lpub/Lprv instead of Ltuu.
 CLAUDE: Updated LIF mainnet and testnet bip32 version bytes in settings.js from {public: 0x019da4e0, private: 0x019da380} to {public: 0x019c3550, private: 0x019c3115}. This produces Lpub/Lprv prefixes for LIF extended public/private keys. Also added LIF versions to parse_xpub fallback list.
+
+---
+USER: Fix LIF bip32 version bytes to match lif-coin node values.
+CLAUDE: The wallet had wrong bip32 version bytes for LIF (0x019da4e0/0x019da380 producing "Ltuu"). The correct values were already in lif-coin/lib/protocol/networks.js (0x5d6413db/0x5d631e9c producing "Lpub/Lprv"). Updated both LIF mainnet and testnet in settings.js to use the node's values, and updated the parse_xpub fallback list. Extended keys are now compatible between wallet and node.
