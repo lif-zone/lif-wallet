@@ -1192,7 +1192,11 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
   const hasPassphrase = !!wallet.ls.passphrase;
   const derivPath = wallet.ls.derivPath || hd_path_def(netconf);
   const xpub_str = useMemo(()=>{
-    if (is_watch || !wallet.ls.mnemonic)
+    if (wallet.ls.type=='zpub')
+      return wallet.ls.zpub;
+    if (wallet.ls.type=='watch')
+      return (wallet.ls.addresses||[]).join('\n');
+    if (!wallet.ls.mnemonic)
       return null;
     try {
       return hd_xpub(wallet.ls.mnemonic, netconf.network,
@@ -1200,7 +1204,8 @@ function Wallet_settings_subscreen({wallet, onUpdate, onDelete}){
     } catch(e){
       return null;
     }
-  }, [wallet.ls.mnemonic, wallet.ls.passphrase, derivPath]);
+  }, [wallet.ls.mnemonic, wallet.ls.passphrase, derivPath,
+    wallet.ls.type, wallet.ls.zpub]);
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
