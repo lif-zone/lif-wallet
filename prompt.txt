@@ -1795,5 +1795,17 @@ CLAUDE: Implemented reorg handling:
 USER: Add difficulty retarget validation and genesis hash trust anchors to SPV wallet
 CLAUDE: Implemented difficulty validation:
 - settings.js: Added genesisHash to all network objects (networks_lif, networks_liftest, BTC mainnet/testnet via spread).
-- wallet_chain.js: Added POW_LIMIT_BITS, RETARGET_INTERVAL, TARGET_TIMESPAN constants. Added hdr_validate_bits(hdr, prev_hdr, retarget_hdr) — mid-period: bits must equal previous block; at retarget boundary: computes expected bits from elapsed time, clamped to 1/4x-4x range and pow limit. Integrated into wc_sync_headers (validates genesis hash at height 0, validates bits for every header with a known predecessor, fetches retarget boundary header from DB when needed). Integrated into wc_check_reorg (validates bits for each header in the reorg chain).
+- wallet_chain.js: Added POW_LIMIT_BITS, RETARGET_INTERVAL, TARGET_TIMESPAN constants. Added hdr_validate_bits(hdr, prev_hdr, retarget_hdr) — mid-period: bits must equal previous block; at retarget boundary: computes expected bits from elapsed time, clamped to 1/4x-4x range and pow limit. Integrated into wc_check_reorg (validates bits for each header in the reorg chain).
+---
+USER: Add checkpoint-based difficulty chain validation — validate from a trusted anchor forward through retarget boundaries before syncing any headers.
+CLAUDE: Implemented checkpoint-based difficulty chain:
+- settings.js: genesisHash on all network objects serves as the trust anchor (height 0 checkpoint).
+- wallet_chain.js: Added CHECKPOINTS table (per network symbol, extensible), checkpoint_find() to find nearest checkpoint below target height, fetch_header() helper, and wc_ensure_difficulty_chain(netconf, target_height) which: finds nearest checkpoint, verifies its hash, walks FORWARD through retarget boundaries fetching period-end (b-1) and boundary (b) headers, validates PoW + prevHash link + retarget bits at each boundary, stores only after validation. wc_sync_headers now calls wc_ensure_difficulty_chain first, then validates each contiguous header's bits against the difficulty chain (period-start boundary header). Removed old per-header bits-vs-prev validation in favor of direct check against validated difficulty chain. Added 16 BTC checkpoints every 50,000 blocks (50000-800000) from blockstream API.
+---
+USER: Add HTTP /electrum_web/:method endpoint to lif-coin for curl access to electrum APIs
+CLAUDE: Refactored lib/node/http.js:
+- Moved electrum_addrsh() and height_cmp() to module level (were local to on_electrum).
+- Added init_electrum_methods() — registers all non-subscribe electrum methods on this.electrum_methods map, called from init().
+- on_electrum() now loops over this.electrum_methods to register them on the per-connection WS, then adds only the subscribe methods (headers.subscribe, scripthash.subscribe) which need per-connection state.
+- Added GET /electrum_web/:method?q=param1,param2 route — calls the method from this.electrum_methods, splits q by commas, auto-coerces numeric params. Returns JSON result.
 ---

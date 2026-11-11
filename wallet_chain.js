@@ -74,6 +74,135 @@ function hdr_validate_bits(hdr, prev_hdr, retarget_hdr){
   return hdr.bits==expected_bits;
 }
 
+// Checkpoints per network symbol: [[height, hash], ...] ascending
+// Genesis (height 0) is implicit from network.genesisHash
+const CHECKPOINTS = {
+  LIF: [
+    [500, '00000000762cae595a1dbd8b2d4344a5cb2b867a6eeb9678918f849df67cab11'],
+  ],
+  tLIF: [],
+  BTC: [
+    [50000, '000000001aeae195809d120b5d66a39c83eb48792e068f8ea1fea19d84a4278a'],
+    [100000, '000000000003ba27aa200b1cecaad478d2b00432346c3f1f3986da1afd33e506'],
+    [150000, '0000000000000a3290f20e75860d505ce0e948a1d1d846bec7e39015d242884b'],
+    [200000, '000000000000034a7dedef4a161fa058a2d67a173a90155f3a2fe6fc132e0ebf'],
+    [250000, '000000000000003887df1f29024b06fc2200b55f8af8f35453d7be294df2d214'],
+    [300000, '000000000000000082ccf8f1557c5d40b21edabb18d2d691cfbf87118bac7254'],
+    [350000, '0000000000000000053cf64f0400bb38e0c4b3872c38795ddde27acb40a112bb'],
+    [400000, '000000000000000004ec466ce4732fe6f1ed1cddc2ed4b328fff5224276e3f6f'],
+    [450000, '0000000000000000014083723ed311a461c648068af8cef8a19dcd620c07a20b'],
+    [500000, '00000000000000000024fb37364cbf81fd49cc2d51c09c75c35433c3a1945d04'],
+    [550000, '000000000000000000223b7a2298fb1c6c75fb0efc28a4c56853ff4112ec6bc9'],
+    [600000, '00000000000000000007316856900e76b4f7a9139cfbfba89842c8d196cd5f91'],
+    [650000, '0000000000000000000060e32d547b6ae2ded52aadbc6310808e4ae42b08cc6a'],
+    [700000, '0000000000000000000590fc0f3eba193a278534220b2b37e9849e1a770ca959'],
+    [750000, '0000000000000000000592a974b1b9f087cb77628bb4a097d5c2c11b3476a58e'],
+    [800000, '00000000000000000002a7c4c1e48d76c5a37902165a270156b7a8d72728a054'],
+  ],
+  tBTC: [],
+};
+
+function checkpoint_find(netconf, height){
+  let all = [[0, netconf.network.genesisHash]];
+  let cps = CHECKPOINTS[netconf.symbol] || [];
+  for (let cp of cps){
+    if (cp[0]<=height)
+      all.push(cp);
+  }
+  let best = all[0];
+  for (let cp of all){
+    if (cp[0]>=best[0])
+      best = cp;
+  }
+  return {height: best[0], hash: best[1]};
+}
+
+// Fetch a single header from electrum, validate PoW, return parsed
+async function fetch_header(el, pow, height){
+  let res = await el.block_headers(height, 1);
+  if (res.error || !res.count)
+    return {error: 'failed to fetch header at '+height};
+  let raw_hex = res.hex;
+  let hdr = hdr_parse(raw_hex, height);
+  hdr.hash = hdr_hash(raw_hex, pow);
+  if (!hdr_verify_pow(raw_hex, pow))
+    return {error: 'invalid pow at height '+height};
+  return hdr;
+}
+
+// Ensure validated difficulty chain from nearest checkpoint to target_height.
+// Fetches retarget boundary headers forward, validating and storing each.
+async function wc_ensure_difficulty_chain(netconf, target_height){
+  if (target_height<=0)
+    return {};
+  let net = netconf.symbol;
+  let pow = netconf.pow;
+  let el = _el(netconf);
+  let cp = checkpoint_find(netconf, target_height);
+  // Ensure checkpoint header is in DB and valid
+  let cp_hdr = await hdr_get(net, cp.height);
+  if (!cp_hdr){
+    let hdr = await fetch_header(el, pow, cp.height);
+    if (hdr.error)
+      return hdr;
+    if (hdr.hash!=cp.hash)
+      return {error: 'checkpoint hash mismatch at '+cp.height};
+    await hdr_put(net, cp.height, hdr);
+    cp_hdr = hdr;
+  } else {
+    if (!cp_hdr.hash)
+      cp_hdr.hash = hdr_hash(cp_hdr.raw, pow);
+    if (cp_hdr.hash!=cp.hash)
+      return {error: 'cached checkpoint hash mismatch at '+cp.height};
+  }
+  // If checkpoint is not on a boundary, ensure period-start header exists
+  let cp_boundary = Math.floor(cp.height / RETARGET_INTERVAL) * RETARGET_INTERVAL;
+  if (cp.height!=cp_boundary && cp_boundary>0){
+    let start_hdr = await hdr_get(net, cp_boundary);
+    if (!start_hdr){
+      start_hdr = await fetch_header(el, pow, cp_boundary);
+      if (start_hdr.error)
+        return start_hdr;
+      if (start_hdr.bits!=cp_hdr.bits)
+        return {error: 'bits mismatch at period start '+cp_boundary};
+      await hdr_put(net, cp_boundary, start_hdr);
+    }
+  }
+  // Walk forward through retarget boundaries
+  let first_boundary = cp_boundary + RETARGET_INTERVAL;
+  let last_boundary = Math.floor(target_height / RETARGET_INTERVAL)
+    * RETARGET_INTERVAL;
+  for (let b=first_boundary; b<=last_boundary; b+=RETARGET_INTERVAL){
+    let b_hdr = await hdr_get(net, b);
+    if (b_hdr)
+      continue;
+    // Need period-start, period-end (b-1), and boundary (b)
+    let start_hdr = await hdr_get(net, b - RETARGET_INTERVAL);
+    if (!start_hdr)
+      return {error: 'missing period start at '+(b - RETARGET_INTERVAL)};
+    // Fetch period-end header
+    let end_hdr = await hdr_get(net, b - 1);
+    if (!end_hdr){
+      end_hdr = await fetch_header(el, pow, b - 1);
+      if (end_hdr.error)
+        return end_hdr;
+      if (end_hdr.bits!=start_hdr.bits)
+        return {error: 'bits mismatch at '+(b - 1)};
+      await hdr_put(net, b - 1, end_hdr);
+    }
+    // Fetch boundary header
+    b_hdr = await fetch_header(el, pow, b);
+    if (b_hdr.error)
+      return b_hdr;
+    if (b_hdr.prevHash!=end_hdr.hash)
+      return {error: 'prevHash mismatch at '+b};
+    if (!hdr_validate_bits(b_hdr, end_hdr, start_hdr))
+      return {error: 'invalid retarget at '+b};
+    await hdr_put(net, b, b_hdr);
+  }
+  return {};
+}
+
 // State per network
 const chain_state = {};
 
@@ -217,11 +346,19 @@ async function wc_check_reorg(netconf, chain_height){
 }
 
 // Sync headers around TX heights. Only fetches what's missing from DB.
+// First ensures difficulty chain is validated from checkpoint, then fetches
+// contiguous ranges and validates each header against the difficulty chain.
 export async function wc_sync_headers(netconf, tx_heights, chain_height){
   let net = netconf.symbol;
   let el = _el(netconf);
   if (!tx_heights?.length)
     return {height: chain_height, count: 0};
+  // Ensure difficulty chain covers all needed heights
+  let max_height = Math.min(chain_height,
+    Math.max(...tx_heights) + HEADERS_FORWARD);
+  let dc_res = await wc_ensure_difficulty_chain(netconf, max_height);
+  if (dc_res.error)
+    return dc_res;
   // Compute needed ranges from TX heights
   let ranges = tx_heights.map(h=>[
     Math.max(0, h-HEADERS_BACKWARD),
@@ -267,11 +404,6 @@ export async function wc_sync_headers(netconf, tx_heights, chain_height){
         let h = start+i;
         let hdr = hdr_parse(raw_hex, h);
         hdr.hash = hdr_hash(raw_hex, pow);
-        // Validate genesis hash
-        if (h==0){
-          if (hdr.hash!=netconf.network.genesisHash)
-            return {error: 'genesis hash mismatch'};
-        }
         if (!hdr_verify_pow(raw_hex, pow))
           return {error: 'invalid pow at height '+h};
         // Validate prevHash against previous header if we have it
@@ -281,13 +413,13 @@ export async function wc_sync_headers(netconf, tx_heights, chain_height){
           if (hdr.prevHash!=prev_hash)
             return {error: 'prevHash mismatch at height '+h};
         }
-        // Validate bits follows retarget rules
-        if (prev){
-          let retarget_hdr = null;
-          if (h % RETARGET_INTERVAL==0)
-            retarget_hdr = await hdr_get(net, h - RETARGET_INTERVAL);
-          if (!hdr_validate_bits(hdr, prev, retarget_hdr))
-            return {error: 'invalid bits at height '+h};
+        // Validate bits against difficulty chain
+        let period_start = Math.floor(h / RETARGET_INTERVAL)
+          * RETARGET_INTERVAL;
+        let expected_hdr = await hdr_get(net, period_start);
+        if (expected_hdr){
+          if (hdr.bits!=expected_hdr.bits)
+            return {error: 'bits mismatch at height '+h};
         }
         await hdr_put(net, h, hdr);
         total++;
