@@ -217,7 +217,7 @@ export function mine_instant({netconf, saddr, target}){
   const instant_h = target_from_compact(instant_target);
   let opt = {pow: netconf.pow, header, target: instant_target};
   _status('mining');
-  let mine_et = _mine_steps(opt);
+  let mine_et = mine_steps(opt);
   mine_et.on('update', up=>{
     this.emit('update', {...up, mining: true, reward: reward_net,
       target: instant_target});
