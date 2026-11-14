@@ -11,6 +11,13 @@ import {mine, mine_worker_call, mine_steps,
 } from './mine.js';
 import {tx_out_find, tx_broadcast, tx_send} from './wallet_db.js';
 
+function _mine_steps(opt, steps=true){
+  return steps && mine_slave_enable.includes('remote') ? mine_slave(opt) :
+    steps && mine_slave_enable.includes('alt') ? mine_steps_alt(opt) :
+    steps ? mine_steps(opt) :
+    mine_worker_call(opt);
+}
+
 export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   return etask(function*()
 {
@@ -23,11 +30,7 @@ export function mine_solo({netconf, saddr, min, max, target, steps=true}){
   _status('mining');
   let reward = template.reward;
   let opt = {pow: netconf.pow, header, min, max, target};
-  let mine_et =
-    steps && mine_slave_enable.includes('remote') ? mine_slave(opt) :
-    steps && mine_slave_enable.includes('alt') ? mine_steps_alt(opt) :
-    steps ? mine_steps(opt) :
-    mine_worker_call(opt);
+  let mine_et = _mine_steps(opt, steps);
   mine_et.on('update', up=>this.emit('update', {...up, reward}));
   let mine_ret = yield mine_et;
   console.log('mine_res', mine_ret);
@@ -214,7 +217,7 @@ export function mine_instant({netconf, saddr, target}){
   const instant_h = target_from_compact(instant_target);
   let opt = {pow: netconf.pow, header, target: instant_target};
   _status('mining');
-  let mine_et = mine_steps(opt);
+  let mine_et = _mine_steps(opt);
   mine_et.on('update', up=>{
     this.emit('update', {...up, mining: true, reward: reward_net,
       target: instant_target});
