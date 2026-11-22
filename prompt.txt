@@ -1933,3 +1933,11 @@ Tested on a temporary server (port 4213, stopped): the three places show
 the L for a LIF wallet, the radio buttons show L and B. A Bitcoin wallet
 card and header were not looked at.
 ---
+---
+USER:
+I want ~/lif-wallet/coin_lif.svg to also be updated. and the pngs you told
+in BlueWallet
+
+CLAUDE:
+coin_lif.svg: the circle's fill changed from #2B2B56 to #00C3FF
+(0, 195, 255), as lif-kernel/lif_l.svg.
