@@ -12,3 +12,8 @@ process.exit = code=>console.warn('process.exit('+(code||0)+')');
 globalThis.setImmediate = setImmediate; 
 globalThis.clearImmediate = clearImmediate;
 
+let node_env = new URLSearchParams(location.search).get('NODE_ENV') ||
+  localStorage.getItem('NODE_ENV');
+if (node_env)
+  console.log('NODE_ENV '+node_env);
+((globalThis.process ||= {}).env ||= {}).NODE_ENV = node_env||'production';
