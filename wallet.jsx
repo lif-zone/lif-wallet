@@ -380,7 +380,9 @@ function BrightWallet(){
             <button onClick={goBack}>← Back</button>
           }
           <h1 style={{cursor: 'pointer', fontSize: 24, margin: 0, display: 'flex', alignItems: 'center', gap: 8}} onClick={goHome}>
-            <img src={import.meta.resolve('./bright.ico')} style={{width: 32, height: 32}} />
+            {wallet
+              ? <Coin_icon netconf={wallet.netconf} size={32} />
+              : <img src={import.meta.resolve('./bright.ico')} style={{width: 32, height: 32}} />}
             {wallet ? wallet.ls.name : 'LIF Wallet'}
           </h1>
         </div>
@@ -590,6 +592,19 @@ function Home_screen({wallets, onSelect, onAddNew, onMine, onMinePool}){
 }
 
 // Wallet Card (summary box on home screen)
+// Coin Icon
+// the round icon of the coin of a network: B for Bitcoin, L for Lifcoin
+// (also their testnets)
+const coin_icons = {
+  btc: import.meta.resolve('./coin_btc.svg'),
+  lif: import.meta.resolve('./coin_lif.svg'),
+};
+function Coin_icon({netconf, size=20}){
+  let src = /BTC$/.test(netconf.symbol) ? coin_icons.btc : coin_icons.lif;
+  return <img src={src} alt={netconf.symbol}
+    style={{width: size, height: size, flexShrink: 0}} />;
+}
+
 function Wallet_card({wallet, onClick, onMine, onMinePool}){
   const {netconf} = wallet;
   const [balance, setBalance] = useState(wallet.c.balance ?? null);
@@ -633,10 +648,14 @@ function Wallet_card({wallet, onClick, onMine, onMinePool}){
   const is_watch = wallet.ls.type=='watch' || wallet.ls.type=='zpub';
   return (
     <div style={cardStyle} onClick={onClick}>
-      <div style={{fontWeight: 'bold', fontSize: 15}}>
-        {label}
-        {is_watch && <span style={{fontSize: 11, color: '#888',
-          marginLeft: 6}}>watch-only</span>}
+      <div style={{fontWeight: 'bold', fontSize: 15, display: 'flex',
+        alignItems: 'center', gap: 6}}>
+        <Coin_icon netconf={netconf} />
+        <span>
+          {label}
+          {is_watch && <span style={{fontSize: 11, color: '#888',
+            marginLeft: 6}}>watch-only</span>}
+        </span>
       </div>
       <div style={{marginTop: 10}}>
         {connErr ? (
@@ -857,6 +876,7 @@ function Wallet_add_screen({wallets, onAdd, onCancel}){
                 checked={networkKey==key}
                 onChange={()=>{ setNetworkKey(key); setDerivPath(hd_path_def(netconf)); }}
               />
+              <Coin_icon netconf={netconf} />
               {netconf.symbol} {netconf.name}
             </label>
           ))}

@@ -1914,3 +1914,22 @@ CLAUDE: Simplified Add Wallet screen in wallet.jsx:
 - handleAdd detects input type: tries xpub first, then address(es), then mnemonic
 - QR scanner now puts zpub/address values into the same mnemonicInput field
 - Passphrase and Advanced options still shown (only relevant for mnemonic, ignored for xpub/address)
+---
+USER:
+in lif-wallet, add a B icon for icon and L for LIF. a B svg you can take
+from https://blockstream.info/img/icons/Bitcoin-menu-logo.svg. Put it in the
+Radio Buttons where selecting BTC or LIF wallet, and in the top left of the
+cards of the wallets, and in the top left of the wallet screen, accordingly.
+
+CLAUDE:
+- coin_btc.svg (new): the B of blockstream.info (Bitcoin-menu-logo.svg).
+- coin_lif.svg (new): lif-kernel/lif_l.svg without its white background
+  square, so its corners are transparent.
+- wallet.jsx: Coin_icon({netconf, size}): the B for BTC and tBTC, the L for
+  LIF and tLIF. Shown in the Coin radio buttons of Add Wallet, before the
+  name on each wallet card, and in the header of the wallet screens in
+  place of the app icon (the home screen keeps the app icon).
+Tested on a temporary server (port 4213, stopped): the three places show
+the L for a LIF wallet, the radio buttons show L and B. A Bitcoin wallet
+card and header were not looked at.
+---
