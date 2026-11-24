@@ -1941,3 +1941,13 @@ in BlueWallet
 CLAUDE:
 coin_lif.svg: the circle's fill changed from #2B2B56 to #00C3FF
 (0, 195, 255), as lif-kernel/lif_l.svg.
+---
+USER:
+check lif-wallet and make it standard (lif-coin now reports Electrum heights
+for mempool txs: 0, or -1 with an unconfirmed input)
+
+CLAUDE:
+wallet_db.js: the history sort used (height||1e9), which put height 0 first
+but height -1 last. Now every tx with height<=0 sorts first.
+All other height tests already use >0 and <=0: no change.
+---

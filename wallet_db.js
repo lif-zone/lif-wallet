@@ -257,8 +257,8 @@ async function _wallet_fetch(wallet, refresh){
     for (const tx of (a.hist||[]))
       txByHash.set(tx.tx_hash, tx);
   }
-  const hist = [...txByHash.values()].sort((a, b)=>(b.height||1e9)
-    -(a.height||1e9));
+  const hist = [...txByHash.values()].sort((a, b)=>
+    (b.height>0 ? b.height : 1e9)-(a.height>0 ? a.height : 1e9));
   c.transactions = [];
   c.ownedKeys = [];
   if (hist.length){
