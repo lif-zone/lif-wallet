@@ -3357,9 +3357,9 @@ function Get_domain_screen({wallet, onSent, domain=''}){
         {nameStatus=='taken' && <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>Already taken</div>}
       </div>
       <div style={{marginTop: 12}}>
-        <label>Site:</label>
+        <label>Website source code (npm, github, gitlab):</label>
         <input
-          placeholder="e.g. git://github.com/myuser/myrepo"
+          placeholder="git://github.com/lif-zone/lif-basic or npm:lif-basic"
           value={site}
           onChange={e=>setSite(e.target.value.trim())}
           style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
