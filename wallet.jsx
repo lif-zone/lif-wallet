@@ -2942,6 +2942,70 @@ function domain_ending(){
   return '.'+h.slice(-2).join('.');
 }
 
+// The domain name field of Register Domain and Get Domain: the name between
+// 'https://' and the ending, and below it whether the name is valid and
+// available. onStatus gets: null (empty), 'invalid', 'checking',
+// 'available', 'taken' or 'error'.
+function Domain_name_field({netconf, name, setName, onStatus}){
+  const [status, setStatus] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(()=>{
+    let cancelled = false;
+    (async()=>{
+      if (!name){
+        setStatus(null);
+        return;
+      }
+      if (!domain_name_valid(name)){
+        setStatus('invalid');
+        return;
+      }
+      setStatus('checking');
+      await esleep(500);
+      if (cancelled)
+        return;
+      try {
+        const kv = await _el(netconf).lif_kv_get('dns/'+name);
+        if (cancelled)
+          return;
+        setError(''+(kv?.error||'no answer'));
+        setStatus(kv_status_str(kv));
+      } catch(e){
+        if (cancelled)
+          return;
+        setError(''+(e.message||e));
+        setStatus('error');
+      }
+    })();
+    return ()=>{ cancelled = true; };
+  }, [name]);
+  useEffect(()=>{ onStatus?.(status); }, [status]);
+  const msg = (color, text)=>
+    <div style={{fontSize: 12, color, marginTop: 3}}>{text}</div>;
+  return (
+    <div style={{marginTop: 12}}>
+      <label>Domain name:</label>
+      <div style={{display: 'flex', alignItems: 'center', marginTop: 4,
+        fontFamily: 'monospace', fontSize: 13}}>
+        <span>https://</span>
+        <input
+          placeholder="your-domain"
+          value={name}
+          onChange={e=>setName(e.target.value.trim().toLowerCase())}
+          style={{flex: 1, minWidth: 0, margin: '0 4px',
+            fontFamily: 'monospace', fontSize: 13, boxSizing: 'border-box'}}
+        />
+        <span>{domain_ending()}</span>
+      </div>
+      {status=='invalid' && msg('#c00', 'Invalid domain name')}
+      {status=='checking' && msg('#aaa', 'Checking availability...')}
+      {status=='available' && msg('green', 'Domain is available')}
+      {status=='taken' && msg('#c00', 'Domain is taken')}
+      {status=='error' && msg('#c00', 'Cannot check the domain: '+error)}
+    </div>
+  );
+}
+
 // DNS Domain registration screen (simplified: key=dns/<name>, val={site:...})
 function Kv_add_screen({wallet, onSent, onUpdate}){
   const modal = useModal();
@@ -2951,7 +3015,6 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
   const [site, setSite] = useState('');
   const [sending, setSending] = useState(false);
   const [nameStatus, setNameStatus] = useState(null);
-  const [nameError, setNameError] = useState('');
   const kv_key = ()=>'dns/'+name.trim();
   const kv_val = ()=>JSON.stringify({site: site.trim()});
   const [fee, setFee] = useState(0);
@@ -2961,36 +3024,6 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
   useEffect(()=>{
     setFee(kv_tx_add({wallet, key: kv_key(), val: kv_val()}).fee);
   }, [name, site]);
-  useEffect(()=>{
-    let cancelled = false;
-    (async()=>{
-      if (!name){
-        setNameStatus(null);
-        return;
-      }
-      if (!domain_name_valid(name)){
-        setNameStatus('invalid');
-        return;
-      }
-      setNameStatus('checking');
-      await esleep(500);
-      if (cancelled)
-        return;
-      try {
-        const kv = await _el(netconf).lif_kv_get(kv_key());
-        if (cancelled)
-          return;
-        setNameError(''+(kv?.error||'no answer'));
-        setNameStatus(kv_status_str(kv));
-      } catch(e){
-        if (cancelled)
-          return;
-        setNameError(''+(e.message||e));
-        setNameStatus('error');
-      }
-    })();
-    return ()=>{ cancelled = true; };
-  }, [name]);
   const handle_add = async()=>{
     if (!name.trim())
       return await modal.alert('Name is required');
@@ -3016,36 +3049,8 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
   return (
     <div style={{marginTop: 16, maxWidth: 480}}>
       <h3>Register Domain</h3>
-      <div style={{marginTop: 12}}>
-        <label>Domain name:</label>
-        <div style={{display: 'flex', alignItems: 'center', marginTop: 4,
-          fontFamily: 'monospace', fontSize: 13}}>
-          <span>https://</span>
-          <input
-            placeholder="your-domain"
-            value={name}
-            onChange={e=>setName(e.target.value.trim().toLowerCase())}
-            style={{flex: 1, minWidth: 0, margin: '0 4px',
-              fontFamily: 'monospace', fontSize: 13, boxSizing: 'border-box'}}
-          />
-          <span>{domain_ending()}</span>
-        </div>
-        {nameStatus=='invalid' &&
-          <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
-            Invalid domain name</div>}
-        {nameStatus=='checking' &&
-          <div style={{fontSize: 12, color: '#aaa', marginTop: 3}}>
-            Checking availability...</div>}
-        {nameStatus=='available' &&
-          <div style={{fontSize: 12, color: 'green', marginTop: 3}}>
-            Domain is available</div>}
-        {nameStatus=='taken' &&
-          <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
-            Domain is taken</div>}
-        {nameStatus=='error' &&
-          <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
-            Cannot check the domain: {nameError}</div>}
-      </div>
+      <Domain_name_field netconf={netconf} name={name} setName={setName}
+        onStatus={setNameStatus} />
       <div style={{marginTop: 12}}>
         <label>Website source code (npm, github, gitlab):</label>
         <input
@@ -3287,7 +3292,7 @@ function Get_domain_screen({wallet, onSent, domain=''}){
   const modal = useModal();
   const {netconf} = wallet;
   const {setValid, isValid} = useFormValid();
-  const [name, setName] = useState(sub_dns(domain));
+  const [name, setName] = useState(sub_dns(domain).toLowerCase());
   const [site, setSite] = useState('');
   const [sending, setSending] = useState(false);
   const [nameStatus, setNameStatus] = useState(null);
@@ -3301,26 +3306,11 @@ function Get_domain_screen({wallet, onSent, domain=''}){
     let {fee} = kv_tx_add({wallet, key: kv_key(), val: kv_val()});
     setFee(fee);
   }, [name, site]);
-  useEffect(()=>{
-    (async()=>{
-      const key = kv_key();
-      if (!name.trim()){
-        setNameStatus(null);
-        return;
-      }
-      setNameStatus('checking');
-      await esleep(500);
-      try {
-        const kv = await _el(netconf).lif_kv_get(key);
-        setNameStatus(kv_status_str(kv));
-      } catch(e){
-        setNameStatus('error');
-      }
-    })();
-  }, [name]);
   const handle_add = async()=>{
     if (!name.trim())
       return await modal.alert('Name is required');
+    if (!domain_name_valid(name))
+      return await modal.alert('Invalid domain name');
     if (!site.trim())
       return await modal.alert('Site is required');
     setSending(true);
@@ -3343,19 +3333,8 @@ function Get_domain_screen({wallet, onSent, domain=''}){
       <h3>Get Domain</h3>
       <div>Cost: <Amount sat={fee} symbol={netconf.symbol} cost /></div>
       <Balance_and_mine bal={bal} wallet={wallet} cost={fee} onSufficient={ok=>setValid('bal', ok)} />
-      <div style={{marginTop: 12}}>
-        <label>Domain name:</label>
-        <input
-          placeholder="e.g. myname"
-          value={name}
-          onChange={e=>setName(e.target.value.trim())}
-          style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
-            fontSize: 13, boxSizing: 'border-box'}}
-        />
-        {nameStatus=='checking' && <div style={{fontSize: 12, color: '#aaa', marginTop: 3}}>Checking…</div>}
-        {nameStatus=='available' && <div style={{fontSize: 12, color: 'green', marginTop: 3}}>Available</div>}
-        {nameStatus=='taken' && <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>Already taken</div>}
-      </div>
+      <Domain_name_field netconf={netconf} name={name} setName={setName}
+        onStatus={setNameStatus} />
       <div style={{marginTop: 12}}>
         <label>Website source code (npm, github, gitlab):</label>
         <input
@@ -3366,7 +3345,10 @@ function Get_domain_screen({wallet, onSent, domain=''}){
             fontSize: 13, boxSizing: 'border-box'}}
         />
       </div>
-      <button onClick={handle_add} disabled={sending||!isValid||nameStatus=='taken'} style={{marginTop: 12}}>
+      <button onClick={handle_add}
+        disabled={sending||!isValid||nameStatus=='taken'||
+          nameStatus=='invalid'}
+        style={{marginTop: 12}}>
         {sending ? 'Registering…' : 'Register'}
       </button>
     </div>

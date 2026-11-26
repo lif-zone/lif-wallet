@@ -2010,3 +2010,18 @@ available', 'Domain is taken'. When the check fails, the screen showed
 nothing; it now shows in red 'Cannot check the domain: <reason>' (new
 nameError state).
 ---
+USER:
+there are 2 problems: 1) empty domain name shows green 'available'. should
+show nothing. 2) "Register Domain" should be in sync with "Get Domain" screen
+(?get_domain=new-domain.pub.site). The domain field with the logic of
+checking availability should be in a component used by both.
+
+CLAUDE:
+wallet.jsx: new component Domain_name_field({netconf, name, setName,
+onStatus}): the row https:// + input + ending, the validation, the
+availability check and the messages. Kv_add_screen() and Get_domain_screen()
+both use it; their own copies of the check and of the field are removed.
+Get Domain now also has the name validation, the cancel of a late answer
+(the cause of a green message on an emptied name), the lowercase, and
+Register disabled for an invalid name.
+---
