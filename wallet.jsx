@@ -2922,6 +2922,16 @@ function Wallet_backup({wallet, onUpdate, onCancel, force}){
   );
 }
 
+// the status of a key by the answer of lif_kv_get(): the node answers a
+// missing key with {not_found: true}, and a failure with {error: ...}
+function kv_status_str(kv){
+  return !kv || kv.error ? 'error' :
+    kv.not_found ? 'available' : 'taken';
+}
+
+// a domain name: [a-z0-9-], no '-' at the beginning or the end, no '--'
+const domain_name_valid = name=>/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name);
+
 // DNS Domain registration screen (simplified: key=dns/<name>, val={site:...})
 function Kv_add_screen({wallet, onSent, onUpdate}){
   const modal = useModal();
@@ -2941,25 +2951,36 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
     setFee(kv_tx_add({wallet, key: kv_key(), val: kv_val()}).fee);
   }, [name, site]);
   useEffect(()=>{
+    let cancelled = false;
     (async()=>{
-      const key = kv_key();
-      if (!name.trim()){
+      if (!name){
         setNameStatus(null);
+        return;
+      }
+      if (!domain_name_valid(name)){
+        setNameStatus('invalid');
         return;
       }
       setNameStatus('checking');
       await esleep(500);
+      if (cancelled)
+        return;
       try {
-        const kv = await _el(netconf).kv_get(key);
-        setNameStatus(kv ? 'taken' : 'available');
+        const kv = await _el(netconf).lif_kv_get(kv_key());
+        if (!cancelled)
+          setNameStatus(kv_status_str(kv));
       } catch(e){
-        setNameStatus('error');
+        if (!cancelled)
+          setNameStatus('error');
       }
     })();
+    return ()=>{ cancelled = true; };
   }, [name]);
   const handle_add = async()=>{
     if (!name.trim())
       return await modal.alert('Name is required');
+    if (!domain_name_valid(name))
+      return await modal.alert('invalid domain name');
     if (!site.trim())
       return await modal.alert('Site is required');
     setSending(true);
@@ -2982,16 +3003,30 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
       <h3>Register Domain</h3>
       <div style={{marginTop: 12}}>
         <label>Domain name:</label>
-        <input
-          placeholder="e.g. myname"
-          value={name}
-          onChange={e=>setName(e.target.value.trim())}
-          style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
-            fontSize: 13, boxSizing: 'border-box'}}
-        />
-        {nameStatus=='checking' && <div style={{fontSize: 12, color: '#aaa', marginTop: 3}}>Checking…</div>}
-        {nameStatus=='available' && <div style={{fontSize: 12, color: 'green', marginTop: 3}}>Available</div>}
-        {nameStatus=='taken' && <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>Already taken</div>}
+        <div style={{display: 'flex', alignItems: 'center', marginTop: 4,
+          fontFamily: 'monospace', fontSize: 13}}>
+          <span>https://</span>
+          <input
+            placeholder="your-domain"
+            value={name}
+            onChange={e=>setName(e.target.value.trim().toLowerCase())}
+            style={{flex: 1, minWidth: 0, margin: '0 4px',
+              fontFamily: 'monospace', fontSize: 13, boxSizing: 'border-box'}}
+          />
+          <span>.pub.site</span>
+        </div>
+        {nameStatus=='invalid' &&
+          <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
+            invalid domain name</div>}
+        {nameStatus=='checking' &&
+          <div style={{fontSize: 12, color: '#aaa', marginTop: 3}}>
+            Checking availability...</div>}
+        {nameStatus=='available' &&
+          <div style={{fontSize: 12, color: 'green', marginTop: 3}}>
+            Available</div>}
+        {nameStatus=='taken' &&
+          <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
+            Already taken</div>}
       </div>
       <div style={{marginTop: 12}}>
         <label>Site:</label>
@@ -3008,7 +3043,10 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
       {wallet.ls.mnemonic &&
         <Wallet_backup wallet={wallet} onUpdate={onUpdate} />
       }
-      <button onClick={handle_add} disabled={sending||!isValid||nameStatus=='taken'} style={{marginTop: 12}}>
+      <button onClick={handle_add}
+        disabled={sending||!isValid||nameStatus=='taken'||
+          nameStatus=='invalid'}
+        style={{marginTop: 12}}>
         {sending ? 'Registering…' : 'Register'}
       </button>
     </div>
@@ -3042,8 +3080,8 @@ function Kv_add_raw_screen({wallet, onSent}){
       setNameStatus('checking');
       await esleep(500);
       try {
-        const kv = await _el(netconf).kv_get(key);
-        setNameStatus(kv ? 'taken' : 'available');
+        const kv = await _el(netconf).lif_kv_get(key);
+        setNameStatus(kv_status_str(kv));
       } catch(e){
         setNameStatus('error');
       }
@@ -3255,8 +3293,8 @@ function Get_domain_screen({wallet, onSent, domain=''}){
       setNameStatus('checking');
       await esleep(500);
       try {
-        const kv = await _el(netconf).kv_get(key);
-        setNameStatus(kv ? 'taken' : 'available');
+        const kv = await _el(netconf).lif_kv_get(key);
+        setNameStatus(kv_status_str(kv));
       } catch(e){
         setNameStatus('error');
       }

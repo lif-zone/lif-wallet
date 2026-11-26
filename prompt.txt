@@ -1951,3 +1951,43 @@ wallet_db.js: the history sort used (height||1e9), which put height 0 first
 but height -1 last. Now every tx with height<=0 sorts first.
 All other height tests already use >0 and <=0: no change.
 ---
+USER:
+in "Register Domain" Kv_add_screen(): The edit box under Domain Name:, should
+have https:// at the beginning (before the edit box) and ending of .pub.site
+at the end, and inside in gray: your-domain. Also, it should validate the
+domain is valid, and below it if there is an error in red 'invalid domain
+name' (must be [a-z0-9-] and '-' not allowed at the beginning or end of the
+name, and not allowed '--' (double -) in the name. if the domain is valid -
+then in green if its available, or red if it is already taken.
+
+CLAUDE:
+wallet.jsx Kv_add_screen(): the name field is a row "https://" + input
+(placeholder your-domain) + ".pub.site". Added domain_name_valid(). An
+invalid name shows 'invalid domain name' in red and is not checked for
+availability; a valid name is checked as before (green Available, red
+Already taken). A late answer for an older name is dropped. Typed capitals
+become lowercase. Register is disabled for an invalid name.
+---
+USER:
+it should have in gray "Checking availability..." below it while checking
+
+CLAUDE:
+wallet.jsx Kv_add_screen(): the gray text while checking is now "Checking
+availability...". Found while testing on a connected server: the
+availability check never worked. The three screens called
+_el(netconf).kv_get(), which does not exist (the function is lif_kv_get()),
+so the check always failed silently. And the node answers a missing key with
+{not_found: true}, which was read as "found". Fixed both: the three screens
+call lif_kv_get(), and a new kv_status() reads the answer (available, taken
+or error).
+---
+USER:
+I dont understand this: [kv_status()] Is this a bug in lif-coin? What is the
+bug? what is 'older' what is 'new'?
+
+CLAUDE:
+No bug in lif-coin. "older" was a wrong guess of mine: {error: 'not found',
+code: -5} is what the electrum handler answers when the node has no KV index
+at all, not an older answer for a missing key. kv_status() corrected: only
+{not_found: true} is 'available'; an error answer or no answer is 'error'.
+---
