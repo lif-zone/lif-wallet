@@ -3007,11 +3007,13 @@ function Domain_name_field({netconf, name, setName, onStatus}){
   );
 }
 
-// The website source field of Register Domain and Get Domain: where the
-// code of the site is (npm, github, gitlab), valid when lpm's npm_parse()
-// accepts it. onStatus gets: null (empty), 'invalid' or 'valid'.
+function site_src_valid(site){
+  return /^[^\/]*:/.test(site) && !!npm_parse(site);
+}
+
+// The website source field of Register Domain and Get Domain
 function Site_src_field({site, setSite, onStatus}){
-  const status = !site ? null : npm_parse(site) ? 'valid' : 'invalid';
+  const status = !site ? null : site_src_valid(site) ? 'valid' : 'invalid';
   useEffect(()=>{ onStatus?.(status); }, [status]);
   return (
     <div style={{marginTop: 12}}>
@@ -3056,7 +3058,7 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
       return await modal.alert('Invalid domain name');
     if (!site.trim())
       return await modal.alert('Site is required');
-    if (!npm_parse(site))
+    if (!site_src_valid(site))
       return await modal.alert('Invalid website source');
     setSending(true);
     try {
@@ -3333,7 +3335,7 @@ function Get_domain_screen({wallet, onSent, domain=''}){
       return await modal.alert('Invalid domain name');
     if (!site.trim())
       return await modal.alert('Site is required');
-    if (!npm_parse(site))
+    if (!site_src_valid(site))
       return await modal.alert('Invalid website source');
     setSending(true);
     try {

@@ -2037,3 +2037,11 @@ field. Valid when npm_parse() (imported from lif-kernel/lpm.js) accepts the
 text; an invalid one shows 'Invalid website source' in red. Register is
 disabled while the name or the source is empty or invalid.
 ---
+USER:
+add another check that it must start with /[^/]*:/ (a ':' before any '/').
+This means it MUST have a protocol.
+
+CLAUDE:
+wallet.jsx: new site_src_valid(site): /^[^\/]*:/ and npm_parse(). The field
+and the two handle_add() use it.
+---
