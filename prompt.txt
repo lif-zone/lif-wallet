@@ -2025,3 +2025,15 @@ Get Domain now also has the name validation, the cancel of a late answer
 (the cause of a green message on an emptied name), the lowercase, and
 Register disabled for an invalid name.
 ---
+USER:
+Add validation for Website source code: call lpm.js:npm_parse(), and
+validate it succeeds. like domain field - it cannot be left empty. make it a
+component for reuse to avoid duplication.
+
+CLAUDE:
+wallet.jsx: new component Site_src_field({site, setSite, onStatus}), used by
+Kv_add_screen() and Get_domain_screen() in place of their two copies of the
+field. Valid when npm_parse() (imported from lif-kernel/lpm.js) accepts the
+text; an invalid one shows 'Invalid website source' in red. Register is
+disabled while the name or the source is empty or invalid.
+---

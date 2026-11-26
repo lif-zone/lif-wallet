@@ -8,6 +8,7 @@ import etask from 'lif-kernel/etask';
 import {OE, OV, OA, ewait, esleep, CE, CEL, json, assert, str}
   from 'lif-kernel/util.js';
 import {ipc_postmessage} from 'lif-kernel/rpc.js';
+import {npm_parse} from 'lif-kernel/lpm.js';
 const {split_ws} = str;
 import {settings_get, settings_save, settings_cs_fetch,
   wallet_db_init, wallet_fetch, wallet_subscribe,
@@ -3006,6 +3007,29 @@ function Domain_name_field({netconf, name, setName, onStatus}){
   );
 }
 
+// The website source field of Register Domain and Get Domain: where the
+// code of the site is (npm, github, gitlab), valid when lpm's npm_parse()
+// accepts it. onStatus gets: null (empty), 'invalid' or 'valid'.
+function Site_src_field({site, setSite, onStatus}){
+  const status = !site ? null : npm_parse(site) ? 'valid' : 'invalid';
+  useEffect(()=>{ onStatus?.(status); }, [status]);
+  return (
+    <div style={{marginTop: 12}}>
+      <label>Website source code (npm, github, gitlab):</label>
+      <input
+        placeholder="git://github.com/lif-zone/lif-basic or npm:lif-basic"
+        value={site}
+        onChange={e=>setSite(e.target.value.trim())}
+        style={{display: 'block', width: '100%', marginTop: 4,
+          fontFamily: 'monospace', fontSize: 13, boxSizing: 'border-box'}}
+      />
+      {status=='invalid' &&
+        <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
+          Invalid website source</div>}
+    </div>
+  );
+}
+
 // DNS Domain registration screen (simplified: key=dns/<name>, val={site:...})
 function Kv_add_screen({wallet, onSent, onUpdate}){
   const modal = useModal();
@@ -3015,6 +3039,7 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
   const [site, setSite] = useState('');
   const [sending, setSending] = useState(false);
   const [nameStatus, setNameStatus] = useState(null);
+  const [siteStatus, setSiteStatus] = useState(null);
   const kv_key = ()=>'dns/'+name.trim();
   const kv_val = ()=>JSON.stringify({site: site.trim()});
   const [fee, setFee] = useState(0);
@@ -3031,6 +3056,8 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
       return await modal.alert('Invalid domain name');
     if (!site.trim())
       return await modal.alert('Site is required');
+    if (!npm_parse(site))
+      return await modal.alert('Invalid website source');
     setSending(true);
     try {
       const {fee: _fee, tx} = kv_tx_add({wallet, key: kv_key(), val: kv_val(), fee});
@@ -3051,24 +3078,16 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
       <h3>Register Domain</h3>
       <Domain_name_field netconf={netconf} name={name} setName={setName}
         onStatus={setNameStatus} />
-      <div style={{marginTop: 12}}>
-        <label>Website source code (npm, github, gitlab):</label>
-        <input
-          placeholder="git://github.com/lif-zone/lif-basic or npm:lif-basic"
-          value={site}
-          onChange={e=>setSite(e.target.value.trim())}
-          style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
-            fontSize: 13, boxSizing: 'border-box'}}
-        />
-      </div>
+      <Site_src_field site={site} setSite={setSite}
+        onStatus={setSiteStatus} />
       <Fee_field value={fee} onChange={setFee} netconf={netconf} />
       <Balance_and_mine bal={bal} wallet={wallet} cost={fee} onSufficient={ok=>setValid('bal', ok)} />
       {wallet.ls.mnemonic &&
         <Wallet_backup wallet={wallet} onUpdate={onUpdate} />
       }
       <button onClick={handle_add}
-        disabled={sending||!isValid||nameStatus=='taken'||
-          nameStatus=='invalid'}
+        disabled={sending||!isValid||!name||nameStatus=='taken'||
+          nameStatus=='invalid'||siteStatus!='valid'}
         style={{marginTop: 12}}>
         {sending ? 'Registering…' : 'Register'}
       </button>
@@ -3296,6 +3315,7 @@ function Get_domain_screen({wallet, onSent, domain=''}){
   const [site, setSite] = useState('');
   const [sending, setSending] = useState(false);
   const [nameStatus, setNameStatus] = useState(null);
+  const [siteStatus, setSiteStatus] = useState(null);
   const kv_key = ()=>'dns/'+name.trim();
   const kv_val = ()=>JSON.stringify({site: site.trim()});
   const [fee, setFee] = useState(0);
@@ -3313,6 +3333,8 @@ function Get_domain_screen({wallet, onSent, domain=''}){
       return await modal.alert('Invalid domain name');
     if (!site.trim())
       return await modal.alert('Site is required');
+    if (!npm_parse(site))
+      return await modal.alert('Invalid website source');
     setSending(true);
     try {
       const {fee: _fee, tx} = kv_tx_add({wallet, key: kv_key(), val: kv_val(), fee});
@@ -3335,19 +3357,11 @@ function Get_domain_screen({wallet, onSent, domain=''}){
       <Balance_and_mine bal={bal} wallet={wallet} cost={fee} onSufficient={ok=>setValid('bal', ok)} />
       <Domain_name_field netconf={netconf} name={name} setName={setName}
         onStatus={setNameStatus} />
-      <div style={{marginTop: 12}}>
-        <label>Website source code (npm, github, gitlab):</label>
-        <input
-          placeholder="git://github.com/lif-zone/lif-basic or npm:lif-basic"
-          value={site}
-          onChange={e=>setSite(e.target.value.trim())}
-          style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
-            fontSize: 13, boxSizing: 'border-box'}}
-        />
-      </div>
+      <Site_src_field site={site} setSite={setSite}
+        onStatus={setSiteStatus} />
       <button onClick={handle_add}
-        disabled={sending||!isValid||nameStatus=='taken'||
-          nameStatus=='invalid'}
+        disabled={sending||!isValid||!name||nameStatus=='taken'||
+          nameStatus=='invalid'||siteStatus!='valid'}
         style={{marginTop: 12}}>
         {sending ? 'Registering…' : 'Register'}
       </button>
