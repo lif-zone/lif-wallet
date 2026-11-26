@@ -3047,9 +3047,9 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
             Cannot check the domain: {nameError}</div>}
       </div>
       <div style={{marginTop: 12}}>
-        <label>Site:</label>
+        <label>Website source code (npm, github, gitlab):</label>
         <input
-          placeholder="e.g. lif:git/myproject"
+          placeholder="git://github.com/lif-zone/lif-basic or npm:lif-basic"
           value={site}
           onChange={e=>setSite(e.target.value.trim())}
           style={{display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace',
