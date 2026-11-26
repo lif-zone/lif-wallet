@@ -2932,6 +2932,16 @@ function kv_status_str(kv){
 // a domain name: [a-z0-9-], no '-' at the beginning or the end, no '--'
 const domain_name_valid = name=>/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name);
 
+// the ending of a domain: the one of the site the user is on, '.pub.site'
+// on localhost or an IP address
+function domain_ending(){
+  let h = location.hostname.split('.');
+  let last = h.at(-1);
+  if (last=='localhost' || last==+last || h.length==1)
+    return '.pub.site';
+  return '.'+h.slice(-2).join('.');
+}
+
 // DNS Domain registration screen (simplified: key=dns/<name>, val={site:...})
 function Kv_add_screen({wallet, onSent, onUpdate}){
   const modal = useModal();
@@ -2941,6 +2951,7 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
   const [site, setSite] = useState('');
   const [sending, setSending] = useState(false);
   const [nameStatus, setNameStatus] = useState(null);
+  const [nameError, setNameError] = useState('');
   const kv_key = ()=>'dns/'+name.trim();
   const kv_val = ()=>JSON.stringify({site: site.trim()});
   const [fee, setFee] = useState(0);
@@ -2967,11 +2978,15 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
         return;
       try {
         const kv = await _el(netconf).lif_kv_get(kv_key());
-        if (!cancelled)
-          setNameStatus(kv_status_str(kv));
+        if (cancelled)
+          return;
+        setNameError(''+(kv?.error||'no answer'));
+        setNameStatus(kv_status_str(kv));
       } catch(e){
-        if (!cancelled)
-          setNameStatus('error');
+        if (cancelled)
+          return;
+        setNameError(''+(e.message||e));
+        setNameStatus('error');
       }
     })();
     return ()=>{ cancelled = true; };
@@ -2980,7 +2995,7 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
     if (!name.trim())
       return await modal.alert('Name is required');
     if (!domain_name_valid(name))
-      return await modal.alert('invalid domain name');
+      return await modal.alert('Invalid domain name');
     if (!site.trim())
       return await modal.alert('Site is required');
     setSending(true);
@@ -3013,20 +3028,23 @@ function Kv_add_screen({wallet, onSent, onUpdate}){
             style={{flex: 1, minWidth: 0, margin: '0 4px',
               fontFamily: 'monospace', fontSize: 13, boxSizing: 'border-box'}}
           />
-          <span>.pub.site</span>
+          <span>{domain_ending()}</span>
         </div>
         {nameStatus=='invalid' &&
           <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
-            invalid domain name</div>}
+            Invalid domain name</div>}
         {nameStatus=='checking' &&
           <div style={{fontSize: 12, color: '#aaa', marginTop: 3}}>
             Checking availability...</div>}
         {nameStatus=='available' &&
           <div style={{fontSize: 12, color: 'green', marginTop: 3}}>
-            Available</div>}
+            Domain is available</div>}
         {nameStatus=='taken' &&
           <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
-            Already taken</div>}
+            Domain is taken</div>}
+        {nameStatus=='error' &&
+          <div style={{fontSize: 12, color: '#c00', marginTop: 3}}>
+            Cannot check the domain: {nameError}</div>}
       </div>
       <div style={{marginTop: 12}}>
         <label>Site:</label>

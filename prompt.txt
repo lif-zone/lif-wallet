@@ -1991,3 +1991,22 @@ code: -5} is what the electrum handler answers when the node has no KV index
 at all, not an older answer for a missing key. kv_status() corrected: only
 {not_found: true} is 'available'; an error answer or no answer is 'error'.
 ---
+USER:
+instead of '.pub.site' ending, if its not localhost - put the actual TLD
+(the last two parts of location.hostname); '.pub.site' on localhost, on a
+one-part host name, or when the last part is a number (an IP address).
+
+CLAUDE:
+wallet.jsx: added domain_ending() and the Register Domain row shows it in
+place of the fixed '.pub.site'.
+---
+USER:
+It only shows 'Checking...' and 'invalid domain name' (should be Invalid
+domain name). It does not check Domain is ailable and Domain is taken
+
+CLAUDE:
+wallet.jsx Kv_add_screen(): texts are now 'Invalid domain name', 'Domain is
+available', 'Domain is taken'. When the check fails, the screen showed
+nothing; it now shows in red 'Cannot check the domain: <reason>' (new
+nameError state).
+---
