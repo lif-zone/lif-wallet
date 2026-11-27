@@ -7,7 +7,7 @@ let Wallet = (await import('./wallet.jsx')).default;
 import {html_elm_frag_append} from 'lif-kernel/util';
 html_elm_frag_append(document.head, `
   <meta name=viewport content='width=device-width, initial-scale=1' />
-  <link rel=icon href='lif-kernel/favicon.ico' />
+  <link rel=icon href='/.lif/npm/lif-kernel/favicon.ico' />
 `);
 // start app
 let _root = document.body.appendChild(document.createElement('div'));

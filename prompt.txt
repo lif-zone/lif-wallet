@@ -2045,3 +2045,11 @@ CLAUDE:
 wallet.jsx: new site_src_valid(site): /^[^\/]*:/ and npm_parse(). The field
 and the two handle_add() use it.
 ---
+USER:
+lets first handle #1: will /.lif/npm/lif-kernel/favicon.ico work?
+
+CLAUDE:
+main.tsx: the favicon link is /.lif/npm/lif-kernel/favicon.ico (served by
+the kernel; lif-kernel/favicon.ico was a 404 since the server path was
+renamed to /.lif.lif-kernel).
+---
